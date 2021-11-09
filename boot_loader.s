@@ -1,16 +1,17 @@
     .code16
     .section .text
 .Lstart:
-
     // 此Bootloader需要保证%ss %cs的值一直为0，直到进入linux内核为止
     // 初始化
-    ljmp $0, $.Lreal_start
+    cli
+    ljmpl $0, $.Lreal_start
 .Lreal_start:
     xorl    %eax, %eax
-    cli
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
     movl    $0x7c00, %esp
     sti
     call    .Lclear
@@ -31,37 +32,15 @@
     addw    $0x1e, %sp
     call    .Lclear
 
+    //读取Bootloader剩余部分
+    movw    $1, %ax
+    movl    $0x7e00000, %edx
+    call    .Lread_hdd
 
-
-
-
-
-
-
-
-    //先读一个扇区
+    //读内核第一个扇区
     movw    $1, %ax
     movl    $0x10000000, %edx
     call    .Lread_hdd
-
-    /*
-    movw    $0x0, %ax
-    movw    %ax, %ds
-    movl    .Ldata1, %ecx
-    cmp     $2, %ecx
-    jne     .Lerror
-    */
-
-    /*
-    movw    $0x1000, %ax
-    movw    %ax, %ds
-    movw    %es:0x1f0, %ax
-    cmp     $0x1bff, %ax
-    jne     .Lerror
-    */
-
-
-
 
     // 读取kernel setup sector
     movb    %es:0x1f1, %al
@@ -77,101 +56,7 @@
     movl    $0x10000200, %edx
     call    .Lread_hdd
 
-    /*
-    #movw    $0x0, %ax
-    #movw    %ax, %ds
-    #movl    .Ldata1, %ecx
-    #cmp     $0x1d, %ecx
-    #jne     .Lerror
-    */
-
-    /*
-    #movw    $0x1000, %ax
-    #movw    %ax, %ds
-    #movw    0x5c0, %ax
-    #cmp     $0xeb73, %ax
-    #je     .Lerror
-    */
-
-
-
-
-
-
-    /*
-    movw    $0, %ax
-    movw    %ax, %ds
-    movl    $0x107c00, %eax
-    movb    (%eax), %al
-    cmpb    $0, %al
-    je      .Lerror
-    */
-
-    //set_header_fields:
-    movw    $0x1000, %ax
-    movw    %ax, %ds
-    movb    $0xff, 0x210
-    orb     $0x80, 0x211
-    andb    $0xdf, 0x211
-    movw    $0xde00, 0x224
-    #movb   $0x00, 0x226
-    movb    $0x01, 0x227
-    movl    $0x1e000, 0x228
-
-    //设置command line
-    movl    $0x1000, %edi
-    movw    %di, %es
-    movw    $0xe000, %di
-    xorw    %ax, %ax
-    movw    %ax, %ds
-    movw    $.Ldata3, %si
-    movl    $(.Ldata4-.Ldata3),%ecx
-    #cld
-    rep	movsb
-
-    //打开 A20
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
-    call    .Lclear
-
-
-    //进入unreal模式
-    cli
-    lgdt    .Ldata5
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    jmp     .Lnext
-.Lnext:
-    movw    $8, %ax
-    movw    %ax, %ds
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    sti
-    call    .Lclear
-
-    //进入内核
-    call    .Lclear
-    cli
-    movw    $0x1000, %ax
-    movw    %ax, %ds
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    xorl    %eax, %eax
-    movl    $0xe000, %esp
-    ljmp    $0x1020, $0x0
-
-
-
-
-
-
-
+    jmp     .Lpart2
 
 
 
@@ -226,6 +111,9 @@
     int     $0x10
     jmp     .
 
+
+
+
     // 下一个要读取的逻辑扇区号
     // 0号扇区是boot_loader，1号扇区开始是内核
 .Ldata1:
@@ -238,16 +126,26 @@
 
     // cmd line
 .Ldata3:
-    .ascii "root=/dev/sda0\0"
+    .ascii "root=/dev/sdb2\0"
 
 
     // gdt
 .Ldata4:
     .quad 0
+
+    // 代码段
+    #.word 0xffff
+    #.word 0
+    #.byte 0
+    #.byte 0b10011011
+    #.byte 0b11001111
+    #.byte 0
+
+    // 数据段
     .word 0xffff
     .word 0
     .byte 0
-    .byte 0b10010010
+    .byte 0b10010011
     .byte 0b11001111
     .byte 0
 
@@ -256,8 +154,109 @@
     .word .Ldata5-.Ldata4-1
     .long .Ldata4
 
+    // 内核32位代码加载位置
 .Ldata6:
+    .long 0x100000
+
+.Ldata7:
 
     .fill 510-( . - .Lstart ), 1, 0
     .byte 0x55
     .byte 0xaa
+
+.Lpart2:
+    //set_header_fields:
+    movw    $0x1000, %ax
+    movw    %ax, %ds
+    movb    $0xff, 0x210
+    orb     $0x80, 0x211
+    andb    $0xdf, 0x211
+    movw    $0xde00, 0x224
+    #movb   $0x00, 0x226
+    movb    $0x01, 0x227
+    movl    $0x1e000, 0x228
+
+    //设置command line
+    movl    $0x1000, %edi
+    movw    %di, %es
+    movw    $0xe000, %di
+    xorw    %ax, %ax
+    movw    %ax, %ds
+    movw    $.Ldata3, %si
+    movl    $(.Ldata4-.Ldata3),%ecx
+    #cld
+    rep	movsb
+
+    //打开 A20
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+
+    //进入unreal模式
+    cli
+    lgdt    .Ldata5
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    jmp     .Lnext
+.Lnext:
+    movb    $8, %bl
+    movw    %bx, %ds
+    andb    $0xfe, %al
+    movl    %eax, %cr0
+    ljmpl   $0, $.Lnext2
+.Lnext2:
+    xorl    %eax, %eax
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
+    movl    $0x7c00, %esp
+    sti
+    call    .Lclear
+
+    //加载内核32位代码
+    movl    %es:0x1f4, %eax
+    movl    %eax, %ebx
+    andl    $0x1f, %ebx
+    jz      .Lnext3
+    addl    $0x20, %eax
+.Lnext3:
+    shr     $5, %eax
+.Lread_loop:
+    pushl   %eax
+    movw    $1, %ax
+    movl    $0x20000000, %edx
+    call    .Lread_hdd
+    movl    .Ldata6, %eax
+    addl    $0x200, .Ldata6
+    movw    $0x2000, %bx
+    movw    %bx, %es
+    xorb    %cl, %cl
+.Lmove_loop:
+    movl    %es:0(, %ecx, 4), %ebx
+    movl    %ebx, (%eax, %ecx, 4)
+    incb    %cl
+    cmpb    $128, %cl
+    jne     .Lmove_loop
+    popl    %eax
+    decl    %eax
+    jnz     .Lread_loop
+    
+
+    //进入内核
+    call    .Lclear
+    cli
+    movw    $0x1000, %ax
+    movw    %ax, %ds
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    xorl    %eax, %eax
+    movl    $0xe000, %esp
+    ljmp    $0x1020, $0x0
