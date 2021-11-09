@@ -97,11 +97,6 @@
 
 
 
-    /*movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    jmp     .Lerror
-    */
 
     /*
     movw    $0, %ax
@@ -131,10 +126,33 @@
     movw    %ax, %ds
     movw    $.Ldata3, %si
     movl    $(.Ldata4-.Ldata3),%ecx
-    cld
+    #cld
     rep	movsb
 
-    jmp     .Lerror
+    //打开 A20
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+
+    //进入unreal模式
+    cli
+    lgdt    .Ldata5
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    jmp     .Lnext
+.Lnext:
+    movw    $8, %ax
+    movw    %ax, %ds
+    movl    %cr0, %eax
+    andl    $0xfffffffe, %eax
+    movl    %eax, %cr0
+    sti
+    call    .Lclear
 
     //进入内核
     call    .Lclear
@@ -223,11 +241,22 @@
     .ascii "root=/dev/sda0\0"
 
 
-
+    // gdt
 .Ldata4:
+    .quad 0
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010010
+    .byte 0b11001111
+    .byte 0
 
+    // gdt 地址
+.Ldata5:
+    .word .Ldata5-.Ldata4-1
+    .long .Ldata4
 
-
+.Ldata6:
 
     .fill 510-( . - .Lstart ), 1, 0
     .byte 0x55
