@@ -34,6 +34,7 @@
     call    .Lclear
 
     //读取Bootloader剩余部分
+    # 因为我的Bootloader有点大，512字节装不下，我写了两个扇区
     movw    $1, %ax
     movl    $0x7e00000, %edx
     call    .Lread_hdd
