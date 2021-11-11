@@ -237,7 +237,7 @@
     movw    %bx, %es
     #xorl    %ecx, %ecx     #%ecx已经是0了
 .Lmove_loop:
-    movl    %es:(, %ecx, 4), %ebx
+    movl    %es:0(, %ecx, 4), %ebx
     movl    %ebx, (%eax, %ecx, 4)
     incb    %cl
     cmpb    $128, %cl
