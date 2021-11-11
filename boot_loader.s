@@ -4,6 +4,7 @@
     // 此Bootloader需要保证%ss %cs的值一直为0，直到进入linux内核为止
     // 初始化
     cli
+    # 参考grub2源码：有一些BIOS进来后CS:IP=0x7c0:0，需要通过远跳转指令来修正
     ljmpl $0, $.Lreal_start
 .Lreal_start:
     xorl    %eax, %eax
