@@ -45,7 +45,9 @@
     // 读取kernel setup sector
     movb    %es:0x1f1, %al
 
-    // 检查是否太多扇区，不够空间存放
+    # 检查是否太多扇区，不够空间存放
+    # 根据内核文档，Kernel boot sector + Kernel setup 的大小不应该超过0x8000
+    # 因此setup_sector的大小不应该超过0x3f
     cmpb    $0x3f, %al
     ja      .Lerror
 
@@ -115,7 +117,7 @@
 
 
     // 下一个要读取的逻辑扇区号
-    // 0号扇区是boot_loader，1号扇区开始是内核
+    // 0, 1号扇区是boot_loader，2号扇区开始是内核
 .Ldata1:
     .long 1
 
@@ -165,27 +167,23 @@
     .byte 0xaa
 
 .Lpart2:
+    # 设置command line
+    movw    $0x2000, %cx
+    movw    %cx, %es
+    movw    $.Ldata3, %si
+    movw    $(.Ldata4-.Ldata3),%cx
+    rep	movsb
+
     //set_header_fields:
     movw    $0x1000, %ax
     movw    %ax, %ds
     movb    $0xff, 0x210
     orb     $0x80, 0x211
     andb    $0xdf, 0x211
-    movw    $0xde00, 0x224
+    movw    $0xfd55, 0x224
     #movb   $0x00, 0x226
     movb    $0x01, 0x227
-    movl    $0x1e000, 0x228
-
-    //设置command line
-    movl    $0x1000, %edi
-    movw    %di, %es
-    movw    $0xe000, %di
-    xorw    %ax, %ax
-    movw    %ax, %ds
-    movw    $.Ldata3, %si
-    movl    $(.Ldata4-.Ldata3),%ecx
-    #cld
-    rep	movsb
+    movl    $0x20000, 0x228
 
     //打开 A20
     movw    $0x2401, %ax
@@ -231,15 +229,15 @@
 .Lread_loop:
     pushl   %eax
     movw    $1, %ax
-    movl    $0x20000000, %edx
+    movl    $0x30000000, %edx
     call    .Lread_hdd
     movl    .Ldata6, %eax
     addl    $0x200, .Ldata6
-    movw    $0x2000, %bx
+    movw    $0x3000, %bx
     movw    %bx, %es
-    xorb    %cl, %cl
+    #xorl    %ecx, %ecx     #%ecx已经是0了
 .Lmove_loop:
-    movl    %es:0(, %ecx, 4), %ebx
+    movl    %es:(, %ecx, 4), %ebx
     movl    %ebx, (%eax, %ecx, 4)
     incb    %cl
     cmpb    $128, %cl
@@ -247,7 +245,7 @@
     popl    %eax
     decl    %eax
     jnz     .Lread_loop
-    
+
 
     //进入内核
     call    .Lclear
@@ -258,5 +256,6 @@
     movw    %ax, %gs
     movw    %ax, %ss
     xorl    %eax, %eax
-    movl    $0xe000, %esp
-    ljmp    $0x1020, $0x0
+    #movl    $0xe000, %esp
+    xorl    %esp, %esp
+    ljmpl   $0x1020, $0x0
