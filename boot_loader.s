@@ -4,6 +4,7 @@
     // 此Bootloader需要保证%ss %cs的值一直为0，直到进入linux内核为止
     // 初始化
     cli
+    # 参考grub2源码：有一些BIOS进来后CS:IP=0x7c0:0，需要通过远跳转指令来修正
     ljmpl $0, $.Lreal_start
 .Lreal_start:
     xorl    %eax, %eax
@@ -17,22 +18,24 @@
     call    .Lclear
 
     //检查一个扇区是不是512字节
-    subw    $0x1e, %sp
-    #movw    %ss, %ax
-    #movw    %ax, %ds
-    movw    %sp, %si
-    movb    $0x48, %ah
-    movb    $0x80, %dl
-    int     $0x13
-    jc      .Lerror
-    testb   %ah, %ah
-    jne     .Lerror
-    cmpw    $0x200, 24(%esp)
-    jne     .Lerror
-    addw    $0x1e, %sp
-    call    .Lclear
+    # qemu不支持int $0x13, %ah=$0x48
+    #subw    $0x1e, %sp
+    ##movw    %ss, %ax
+    ##movw    %ax, %ds
+    #movw    %sp, %si
+    #movb    $0x48, %ah
+    #movb    $0x80, %dl
+    #int     $0x13
+    #jc      .Lerror
+    #testb   %ah, %ah
+    #jne     .Lerror
+    #cmpw    $0x200, 24(%esp)
+    #jne     .Lerror
+    #addw    $0x1e, %sp
+    #call    .Lclear
 
     //读取Bootloader剩余部分
+    # 因为我的Bootloader有点大，512字节装不下，我写了两个扇区
     movw    $1, %ax
     movl    $0x7e00000, %edx
     call    .Lread_hdd
