@@ -183,7 +183,7 @@
     movb    $0xff, 0x210
     orb     $0x80, 0x211
     andb    $0xdf, 0x211
-    movw    $0xfd55, 0x224
+    movw    $0xfdff, 0x224
     #movb   $0x00, 0x226
     movb    $0x01, 0x227
     movl    $0x20000, 0x228
@@ -259,6 +259,7 @@
     movw    %ax, %gs
     movw    %ax, %ss
     xorl    %eax, %eax
-    #movl    $0xe000, %esp
-    xorl    %esp, %esp
+    movl    $0xffff, %esp
     ljmpl   $0x1020, $0x0
+
+    .fill 1024-( . - .Lpart2 ), 1, 0
