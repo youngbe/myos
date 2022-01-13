@@ -203,14 +203,14 @@
     movl    %cr0, %eax
     orl     $1, %eax
     movl    %eax, %cr0
-    jmp     .Lnext
-.Lnext:
+    jmp     1f
+1:
     movb    $8, %bl
     movw    %bx, %ds
     andb    $0xfe, %al
     movl    %eax, %cr0
-    ljmpl   $0, $.Lnext2
-.Lnext2:
+    ljmpl   $0, $1f
+1:
     xorl    %eax, %eax
     movw    %ax, %fs
     movw    %ax, %gs
@@ -225,9 +225,9 @@
     movl    %es:0x1f4, %eax
     movl    %eax, %ebx
     andl    $0x1f, %ebx
-    jz      .Lnext3
+    jz      1f
     addl    $0x20, %eax
-.Lnext3:
+1:
     shr     $5, %eax
 .Lread_loop:
     pushl   %eax
