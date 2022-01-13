@@ -262,4 +262,4 @@
     movl    $0xffff, %esp
     ljmpl   $0x1020, $0x0
 
-    .fill 1024-( . - .Lpart2 ), 1, 0
+    .fill 512-( . - .Lpart2 ), 1, 0
