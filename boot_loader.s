@@ -88,8 +88,7 @@
     testb   %ah, %ah
     jne     .Lerror
     addw    $0x10, %sp
-    call    .Lclear
-    ret
+    jmp     .Lclear
 
 .Lclear:
     movw    $0x1000, %ax
