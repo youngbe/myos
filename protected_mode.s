@@ -30,18 +30,11 @@
 
     lgdt    .Lgdt
 
-    xorl    %ebx, %ebx
-
     movl    %cr0, %eax
     orl     $1, %eax
     movl    %eax, %cr0
     ljmpl   $(.Lgdt1-.Lgdt0), $1f
-
     .code32
-1:
-    jmp     1f
-1:
-    ljmpl   $(.Lgdt1-.Lgdt0), $1f
 1:
     movl    $(.Lgdt3-.Lgdt0), %eax
     movw    %ax, %ds
@@ -49,30 +42,19 @@
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    addl    %ebx, %esp
-
     xorl    %eax, %eax
-	xorl	%ebx, %ebx
-    xorl	%ecx, %ecx
-	xorl	%edx, %edx
-	xorl	%esi, %esi
-	xorl	%edi, %edi
-	xorl	%ebp, %ebp
-
-    jmp     1f
-1:
-    ljmpl   $(.Lgdt1-.Lgdt0), $1f
-1:
-    call    1f
-1:
-    lcall    $(.Lgdt1-.Lgdt0), $1f
-1:
+    xorl    %ebx, %ebx
+    xorl    %ecx, %ecx
+    xorl    %edx, %edx
+    xorl    %esi, %esi
+    xorl    %edi, %edi
+    xorl    %ebp, %ebp
     #sti
+    
     movl    $0xb8000+ ( 80 * 2+ 0 ) * 2, %eax
     movl    $'P'+(0xc00),(%eax)
 
     // 返回实模式
-#xorl    %eax, %eax
     movl    $(.Lgdt4-.Lgdt0), %eax
     movw    %ax, %ds
     movw    %ax, %es
@@ -87,6 +69,7 @@
     movl    %eax, %cr0
     ljmpl   $0, $1f
 1:
+
     xorl    %eax, %eax
     movw    %ax, %fs
     movw    %ax, %gs
