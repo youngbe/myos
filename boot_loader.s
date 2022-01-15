@@ -5,8 +5,8 @@
     // 初始化
     cli
     # 参考grub2源码：有一些BIOS进来后CS:IP=0x7c0:0，需要通过远跳转指令来修正
-    ljmpl $0, $.Lreal_start
-.Lreal_start:
+    ljmpl $0, $1f
+1:
     xorl    %eax, %eax
     movw    %ax, %fs
     movw    %ax, %gs
