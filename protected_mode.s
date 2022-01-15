@@ -62,7 +62,7 @@
     movw    %ax, %gs
     movw    %ax, %ss
     ljmp    $(.Lgdt2-.Lgdt0), $1f
-.code16
+    .code16
 1:
     movl    %cr0, %eax
     andl    $0xfffffffe, %eax
@@ -87,7 +87,6 @@
     movw    $( 80 * 6+ 5 ) * 2, %ax
     movl    $'Q'+(0xc00), %es:(%eax)
     // 程序结束
-    jmp .Lerror
     jmp .
 
 
@@ -132,8 +131,6 @@
 
 
 .Lclear:
-    #movw    $0x1000, %ax
-    #movw    %ax, %es
     xorl    %eax, %eax
     xorl    %ebx, %ebx
     xorl    %ecx, %ecx
