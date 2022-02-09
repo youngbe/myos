@@ -5,6 +5,7 @@
     // 初始化
     cli
     # 参考grub2源码：有一些BIOS进来后CS:IP=0x7c0:0，需要通过远跳转指令来修正
+    # https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S
     ljmpl $0, $1f
 1:
     xorl    %eax, %eax
