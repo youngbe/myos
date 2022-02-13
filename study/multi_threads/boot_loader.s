@@ -1,6 +1,6 @@
 # 地址 0-0x7c00
 # 此段不会被加载到内存执行，只是通过标签获取地址
-    .section start
+    .section .bss.startup
     .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
 .Lstack_end_and_heap_start:
 #线程上下文
