@@ -29,10 +29,11 @@ _start:
     .byte 0b10010010
     .word 0
     
-# 抄的，但并不知道为什么需要对齐
-# https://wiki.osdev.org/Entering_Long_Mode_Directly#Switching_to_Long_Mode
+    # 抄的，但并不知道为什么需要对齐
+    # https://wiki.osdev.org/Entering_Long_Mode_Directly#Switching_to_Long_Mode
     .p2align 2
     .word 0
+
 .Lgdt_ptr:
     .word .Lgdt_ptr-.Lgdt_null-1
     .long .Lgdt_null
@@ -65,11 +66,6 @@ _start:
     movl    $0x13003 , %eax
     movl    %eax, %es:0x2000
 
-    
-#cmpl    $0x3000, %edi
-#je     .Lerror
-
-
     movw    $0x200, %cx
     movl    $3, %eax
 1:
@@ -88,12 +84,6 @@ _start:
 
     cli
 
-
-    #jmp     .Lerror
-
-
-
-
     lgdt    .Lgdt_ptr
 
     # 设置 %cr3
@@ -111,38 +101,14 @@ _start:
     orl     $( 1 << 8 ), %eax
     wrmsr
 
-
-
-#jmp     .Lerror
-
-
-
-
-
     # 设置 %cr0 的 PE位 和 PG位
     movl    %cr0, %eax
     orl     $( (1 << 31) | (1 << 0) ), %eax
     movl    %eax, %cr0
 
-
-
-#jmp     .
-
-
-
-
     ljmpl   $(.Lgdt_code64 - .Lgdt_null), $1f
     .code64
 1:
-
-
-
-#jmp     .
-
-
-
-
-
     movw    $(.Lgdt_data64 - .Lgdt_null ), %ax
     movw    %ax, %ss
     movw    %ax, %ds
