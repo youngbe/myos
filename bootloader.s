@@ -238,17 +238,17 @@ _start:
     # 现在 %eax 是要读取的扇区数
 
 2:
-    # if %eax > 0x27f
-    cmpl    $0x27f, %eax
+    # if %eax > 0x7f
+    cmpl    $0x7f, %eax
     jbe     1f
     pushl   %eax
-    movw    $0x27f, %ax
+    movw    $0x7f, %ax
     movl    $0x30000000, %edx
     call    .Lread_hdd
-    movl    $0x4fe00, %eax
+    movl    $0xfe00, %eax
     call    .Lcopy_to_high
     popl    %eax
-    subl    $0x27f, %eax
+    subl    $0x7f, %eax
     jmp     2b
     # else
 1:
