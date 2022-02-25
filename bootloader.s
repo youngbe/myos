@@ -273,6 +273,7 @@ _start:
     ljmpl   $0x1020, $0x0
 
 
+# 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
 .Lcopy_to_high:
     pushl   %eax
     call    .Lclear
