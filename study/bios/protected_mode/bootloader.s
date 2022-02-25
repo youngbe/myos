@@ -1,12 +1,63 @@
+# 地址 0-0x7c00
+# 此段不会被加载到内存执行，只是通过标签获取地址
+    .section .bss.startup
+    .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
+.Lstack_end_and_heap_start:
+.Lheap_end:
+
+    # 此处地址0x7c00，以下部分将会被加载到内存执行
+    .section .text.startup
     .code16
-    .section .text
-.Lstart:
-    // 此Bootloader需要保证%ss %cs的值一直为0，直到进入linux内核为止
-    // 初始化
-    cli
-    # 参考grub2源码：有一些BIOS进来后CS:IP=0x7c0:0，需要通过远跳转指令来修正
-    ljmpl $0, $1f
-1:
+    .globl _start
+_start:
+    # 重置 %cs 和 %eip
+    # 抄自grub：https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S#l227
+    ljmpl $0, $.Lreal_start
+
+    // gdt
+.Lgdt_null:
+    .quad 0
+.Lgdt_code32:
+    // 32位代码段
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_code16:
+    // 16位代码段
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .word 0
+.Lgdt_data32:
+    // 32位数据段
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_data16:
+    // 16位数据段
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .word 0
+
+    # 抄的，但并不知道为什么需要对齐
+    # https://wiki.osdev.org/Entering_Long_Mode_Directly#Switching_to_Long_Mode
+    .p2align 2
+    .word 0
+
+.Lgdt_ptr:
+    .word .Lgdt_ptr-.Lgdt_null-1
+    .long .Lgdt_null
+
+.Lreal_start:
     xorl    %eax, %eax
     movw    %ax, %fs
     movw    %ax, %gs
@@ -26,17 +77,18 @@
     call    .Lclear
 
     //进入保护模式
+    # 进入保护模式后没有初始化中断向量表，因此要全程关中断
     cli
 
-    lgdt    .Lgdt
+    lgdt    .Lgdt_ptr
 
     movl    %cr0, %eax
     orl     $1, %eax
     movl    %eax, %cr0
-    ljmpl   $(.Lgdt1-.Lgdt0), $1f
+    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
     .code32
 1:
-    movl    $(.Lgdt3-.Lgdt0), %eax
+    movl    $(.Lgdt_data32-.Lgdt_null), %eax
     movw    %ax, %ds
     movw    %ax, %es
     movw    %ax, %fs
@@ -55,13 +107,13 @@
     movl    $'P'+(0xc00),(%eax)
 
     // 返回实模式
-    movl    $(.Lgdt4-.Lgdt0), %eax
+    movl    $(.Lgdt_data16-.Lgdt_null), %eax
     movw    %ax, %ds
     movw    %ax, %es
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    ljmp    $(.Lgdt2-.Lgdt0), $1f
+    ljmp    $(.Lgdt_code16-.Lgdt_null), $1f
     .code16
 1:
     movl    %cr0, %eax
@@ -79,55 +131,12 @@
     sti
     call    .Lclear
 
-#movl    $0xb8000+( 80 * 4+ 5 ) * 2, %eax
-#movl    $'X'+(0xc00), (%eax)
-
     movl    $0xb800, %eax
     movw    %ax, %es
     movw    $( 80 * 6+ 5 ) * 2, %ax
     movl    $'Q'+(0xc00), %es:(%eax)
     // 程序结束
     jmp .
-
-
-
-    // gdt
-.Lgdt0:
-    .quad 0
-.Lgdt1:
-    // 32位代码段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .byte 0b11001111
-    .byte 0
-.Lgdt2:
-    // 16位代码段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .word 0
-.Lgdt3:
-    // 32位数据段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .byte 0b11001111
-    .byte 0
-.Lgdt4:
-    // 16位数据段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .word 0
-
-.Lgdt:
-    .word .Lgdt-.Lgdt0-1
-    .long .Lgdt0
 
 
 .Lclear:
@@ -158,6 +167,6 @@
     jmp     .
 
 
-    .fill 510- (. - .Lstart), 1, 0
+    .fill 510- (. - _start), 1, 0
     .byte   0x55
     .byte   0xaa
