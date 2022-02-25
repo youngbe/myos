@@ -22,10 +22,12 @@
     .code16
     .globl _start
 _start:
+    # 重置 %cs 和 %eip
+    # 抄自grub：https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S#l227
     ljmpl $0, $.Lreal_start
 .Lreal_start:
-    cli
     xorl    %eax, %eax
+    cli
     movw    %ax, %ss
     movl    $.Lstack_end_and_heap_start, %esp
     movw    %ax, %ds

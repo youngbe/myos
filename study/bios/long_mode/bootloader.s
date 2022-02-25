@@ -10,6 +10,8 @@
     .code16
     .globl _start
 _start:
+    # 重置 %cs 和 %eip
+    # 抄自grub：https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S#l227
     ljmpl $0, $.Lreal_start
 
     // gdt
@@ -28,7 +30,7 @@ _start:
     .byte 0
     .byte 0b10010010
     .word 0
-    
+
     # 抄的，但并不知道为什么需要对齐
     # https://wiki.osdev.org/Entering_Long_Mode_Directly#Switching_to_Long_Mode
     .p2align 2
@@ -37,10 +39,10 @@ _start:
 .Lgdt_ptr:
     .word .Lgdt_ptr-.Lgdt_null-1
     .long .Lgdt_null
-    
+
 .Lreal_start:
-    cli
     xorl    %eax, %eax
+    cli
     movw    %ax, %ss
     movl    $.Lstack_end_and_heap_start, %esp
     movw    %ax, %ds

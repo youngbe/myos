@@ -59,12 +59,13 @@ _start:
 
 .Lreal_start:
     xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
+    cli
     movw    %ax, %ss
+    movl    $.Lstack_end_and_heap_start, %esp
     movw    %ax, %ds
     movw    %ax, %es
-    movl    $0x7c00, %esp
+    movw    %ax, %fs
+    movw    %ax, %gs
     sti
     call    .Lclear
 
