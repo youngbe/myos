@@ -114,7 +114,7 @@ _start:
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    ljmp    $(.Lgdt_code16-.Lgdt_null), $1f
+    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
     .code16
 1:
     movl    %cr0, %eax
@@ -150,6 +150,8 @@ _start:
     xorl    %ebp, %ebp
     movw    %ax, %ds
     movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
     cld
     clc
     ret
@@ -158,12 +160,12 @@ _start:
     .ascii "error!"
 2:
 .Lerror:
-    call    .Lclear
-    movw    %ax, %es
-    movw    $1b, %bp
-    movw    $(2b-1b), %cx
-    movb    $0x13, %ah
-    movb    $0b00001111, %bl
+    movl    $0x1300, %eax
+    movl    $0b00001111, %ebx
+    movl    $(2b-1b), %ecx
+    xorl    %edx, %edx
+    movw    %dx, %es
+    movl    $1b, %ebp
     int     $0x10
     jmp     .
 

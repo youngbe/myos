@@ -139,10 +139,17 @@ _start:
     clc
     ret
 
+1:
+    .ascii "error!"
+2:
 .Lerror:
-    movw    $0xb800, %ax
-    movw    %ax, %ds
-    movb    $'e', 0x0
+    movl    $0x1300, %eax
+    movl    $0b00001111, %ebx
+    movl    $(2b-1b), %ecx
+    xorl    %edx, %edx
+    movw    %dx, %es
+    movl    $1b, %ebp
+    int     $0x10
     jmp     .
 
 
