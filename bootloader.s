@@ -230,6 +230,10 @@ _start:
     jnz     .Lerror
     call    .Lclear
 
+    cli
+    lgdt    .Lgdt_ptr
+    sti
+
     //加载内核32位代码
     movw    $0x1000, %ax
     movw    %ax, %ds
@@ -283,7 +287,6 @@ _start:
     pushl   %eax
     call    .Lclear
     cli
-    lgdt    .Lgdt_ptr
     movl    %cr0, %eax
     orl     $1, %eax
     movl    %eax, %cr0
