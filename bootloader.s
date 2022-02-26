@@ -137,6 +137,11 @@ _start:
 .Lread_hdd:
     andl    $0xffff, %eax
 
+    # 部分bios(比如vmware)的拓展读取磁盘服务最大一次只能读127个扇区
+    # https://en.wikipedia.org/wiki/INT_13H#INT_13h_AH=42h:_Extended_Read_Sectors_From_Drive
+    cmpw    $0x7f, %ax
+    ja      .Lerror
+
     xorl    %ecx, %ecx
     movw    %cx, %ds
 
@@ -237,8 +242,8 @@ _start:
     shr     $5, %eax
     # 现在 %eax 是要读取的扇区数
 
+    # while %eax > 0x7f
 2:
-    # if %eax > 0x7f
     cmpl    $0x7f, %eax
     jbe     1f
     pushl   %eax
@@ -250,7 +255,7 @@ _start:
     popl    %eax
     subl    $0x7f, %eax
     jmp     2b
-    # else
+
 1:
     pushw   %ax
     movl    $0x30000000, %edx
