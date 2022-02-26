@@ -300,7 +300,12 @@ _start:
     popl    %ecx
     movl    .Ldata_protected_mode_code, %edi
     addl    %ecx, .Ldata_protected_mode_code
+    movb    %cl, %dl
+    addb    $0b11, %dl
+    shrr    $2, %ecx
     movl    $0x30000, %esi
+    rep;    movsl
+    movb    %dl, %cl
     rep;    movsb
 
     // 返回实模式
