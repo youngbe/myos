@@ -240,10 +240,9 @@ _start:
 
     movw    $512, %cx
     xorl    %ebx, %ebx
-    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %eax
 1:
     movl    %ebx, %es:(%edi)
-    movl    %eax, %es:4(%edi)
+    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %es:4(%edi)
     addw    $0x40, %bx
     addw    $8, %di
     loopw   1b
