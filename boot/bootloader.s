@@ -224,30 +224,29 @@ _start:
     shll    $9, %eax
     call    .Lcopy_to_high
 
-    # 初始化页表 0x10000~0x13fff 共 16kb
-
-    # 将 0x10000~0x12fff 12kb 内存 清0
+    # 初始化页表 0x10000~0x11fff 共 8kb
+    # 0x10000~0x10fff PML4
+    # 0x11000~0x11fff PDPT 1GB页表
     movw    $0x1000, %cx
     movw    %cx, %es
-    movw    $0xc00, %cx
+    movl    $( 0x11000 + ( (1<<0) | (1<<1) ) ) , %ebx
+    movl    %ebx, %es:(%edi)
+    addw    $4, %di
+    movw    $0x3ff, %cx
     rep     stosl
 
-    movl    $0x11003 , %eax
-    movl    %eax, %es:0x0
+    movl    $( (1<<0)|(1<<1)|(1<<7) ), %es:(%edi)
+    addw    $3, %di
 
-    movl    $0x12003 , %eax
-    movl    %eax, %es:0x1000
-
-    movl    $0x13003 , %eax
-    movl    %eax, %es:0x2000
-
-    movw    $0x200, %cx
-    movl    $3, %eax
+    movw    $512, %cx
+    xorl    %ebx, %ebx
+    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %eax
 1:
-    movl    %eax, %es:(%edi)
+    movl    %ebx, %es:(%edi)
+    movl    %eax, %es:4(%edi)
+    addw    $0x40, %bx
     addw    $8, %di
-    addl    $0x1000, %eax
-    loopl   1b
+    loopw   1b
 
     # 重新加载gdt，删去不必要的段(16位和32位)
     movw    $(.Lgdt64_end-.Lgdt_null-1), .Lgdt_ptr
@@ -269,6 +268,8 @@ _start:
     orl     $( 1 << 8 ), %eax
     wrmsr
 
+    call    .Lclear
+
     # 设置 %cr0 的 PE位 和 PG位
     movl    %cr0, %eax
     orl     $( (1 << 31) | (1 << 0) ), %eax
@@ -284,10 +285,8 @@ _start:
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    pushq   $(.Lgdt_code64 - .Lgdt_null)
-    pushq   $0x100000
-    lretq
-
+    xorq    %rax, %rax
+    jmp     0x100000
 
     .code16
 # 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
