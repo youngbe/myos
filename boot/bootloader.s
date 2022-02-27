@@ -284,7 +284,7 @@ _start:
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    pushw   $(.Lgdt_code64 - .Lgdt_null)
+    pushq   $(.Lgdt_code64 - .Lgdt_null)
     pushq   $0x100000
     lretq
 
