@@ -196,7 +196,7 @@ _start:
     call    .Lclear
 
     cli
-    lgdt    .Lgdt_ptr
+    lgdtl   .Lgdt_ptr
     sti
 
     movl    0x8000, %eax
@@ -250,7 +250,7 @@ _start:
     # 重新加载gdt，删去不必要的段(16位和32位)
     movw    $(.Lgdt64_end-.Lgdt_null-1), .Lgdt_ptr
     cli
-    lgdt    .Lgdt_ptr
+    lgdtl   .Lgdt_ptr
 
     # 设置 %cr3
     movl    $0x10000, %eax
