@@ -334,5 +334,3 @@ _start:
     movw    %ax, %es
     sti
     jmp     .Lclear
-
-    .fill 512-( . - .Lpart2 ), 1, 0
