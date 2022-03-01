@@ -246,6 +246,7 @@ _start:
 .Lpart2:
 
     // 侦测内存分布
+    # https://wiki.osdev.org/Detecting_Memory_(x86)
     // 第一次调用：%eax=0xe820, %ebx=0, %ecx=24, %edx=smap, %es:%edi = 地址
     // 返回 cflag位，%eax=smap, %ebx保留，%cl=位数
     // 错误判断： cflag位，%eax=smap, %ebx!=0
