@@ -22,6 +22,9 @@ _start:
 .Ldata_protected_mode_code:
     .long 0x100000
 
+.Ldata_memory_map_size:
+    .long 0
+
     /*
     // gdt
     # 八字节对齐也是抄自Linux源代码
@@ -182,11 +185,148 @@ _start:
     jmp     .
 
 
+# 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
+.Lcopy_to_high:
+    pushl   %eax
+    call    .Lclear
+    cli
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
+    .code32
+1:
+    movl    $(.Lgdt_data32-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+
+    popl    %ecx
+    movl    .Ldata_protected_mode_code, %edi
+    addl    %ecx, .Ldata_protected_mode_code
+    movb    %cl, %dl
+    addb    $0b11, %dl
+    shrl    $2, %ecx
+    movl    $0x30000, %esi
+    rep;    movsl
+    movb    %dl, %cl
+    rep;    movsb
+
+    // 返回实模式
+    movl    $(.Lgdt_data16-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
+    .code16
+1:
+    movl    %cr0, %eax
+    andl    $0xfffffffe, %eax
+    movl    %eax, %cr0
+    ljmpl   $0, $1f
+1:
+    xorl    %eax, %eax
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
+    sti
+    jmp     .Lclear
+
+
     .fill 510-( . - _start ), 1, 0
     .byte 0x55
     .byte 0xaa
 
 .Lpart2:
+
+    // 侦测内存分布
+    // 第一次调用：%eax=0xe820, %ebx=0, %ecx=24, %edx=smap, %es:%edi = 地址
+    // 返回 cflag位，%eax=smap, %ebx保留，%cl=位数
+    // 错误判断： cflag位，%eax=smap, %ebx!=0
+    // 之后的调用：%eax=0xe820，%ebx保留，%ecx=24，%edx=smap，%es:%edi = 地址
+    // 返回：cflag位，%ebx保留，%cl=位数
+    // 结束判断：cflag位，%ebx
+    movw    $0x2000, %ax
+    movw    %ax, %es
+    pushw   %es
+    pushl   %edi
+    movw    $0xe820, %ax
+    movb    $24, %cl
+    movl    $0x534d4150, %edx
+    int     $0x15
+    jc      .Lerror
+    cmpl    $0x534d4150, %eax
+    jne     .Lerror
+    testl   %ebx, %ebx
+    jz      .Lerror
+
+
+
+
+
+    // 每次获取完一个条目后的处理
+5:
+    pushl   %ebx
+    pushw   %cx
+    call    .Lclear
+    popw    %cx
+    popl    %ebx
+    popl    %edi
+    popw    %es
+    // 判断是不是有效条目
+    # if %cl != 24
+    cmpb    $24, %cl
+    je      1f
+        # if %cl != 20
+        # goto error
+        cmpb    $20, %cl
+        jne     .Lerror
+    jmp     2f
+    # else
+1:
+        # if clear位 为 0
+        # 无效条目
+        testb   $1, %es:20(%edi)
+        jz      3f
+2:
+    cmpl    $0, %es:8(%edi)
+    jne     4f
+    cmpl    $0, %es:12(%edi)
+    je      3f
+    # 有效条目
+4:
+    movb    %cl, %es:24(%edi)
+    addw    $25, %di
+    incl    .Ldata_memory_map_size
+    # 无效条目
+3:
+
+
+
+    // 读取下一个条目
+    # 没有下一个条目了
+    testl   %ebx, %ebx
+    jz      6f
+    # 存放条目空间不足
+    cmpw    $(25*2621), %di
+    je      .Lerror
+    pushw   %es
+    pushl   %edi
+    movl    $0xe820, %eax
+    movl    $24, %ecx
+    movl    $0x534d4150, %edx
+    int     $0x15
+    jnc     5b
+    addw    $6, %sp
+6:
+    call    .Lclear
+
     //打开 A20
     movw    $0x2401, %ax
     int     $0x15
@@ -286,57 +426,3 @@ _start:
     movw    %ax, %ss
     xorq    %rax, %rax
     jmp     0x100000
-
-    .code16
-# 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
-.Lcopy_to_high:
-    pushl   %eax
-    call    .Lclear
-    cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
-1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-
-    popl    %ecx
-    movl    .Ldata_protected_mode_code, %edi
-    addl    %ecx, .Ldata_protected_mode_code
-    movb    %cl, %dl
-    addb    $0b11, %dl
-    shrl    $2, %ecx
-    movl    $0x30000, %esi
-    rep;    movsl
-    movb    %dl, %cl
-    rep;    movsb
-
-    // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
-    .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
-    xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
-    sti
-    jmp     .Lclear
