@@ -20,8 +20,12 @@ set -e
 as --64 boot/bootloader.s -o out/bootloader.o
 ld --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
-gcc "${CFLAGS_GLOBAL[@]}" -fpie -c kernel/main.c -o out/main.o
-ld -T build/build.ld -pie out/main.o -o out/kernel.bin
+gcc "${CFLAGS_GLOBAL[@]}" \
+    -nostdinc -I include/public -I include/private -fpie -fno-builtin \
+    -nostdlib -T build/build.ld -pie \
+    kernel/main.c kernel/terminal_io.c \
+    -o out/kernel.bin
+#ld -T build/build.ld -pie out/main.o -o out/kernel.bin
 
 gcc "${CFLAGS_GLOBAL[@]}" build/build_helper.c -o out/build_helper
 out/build_helper out/kernel.bin out/kernel_size

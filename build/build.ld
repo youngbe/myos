@@ -7,5 +7,6 @@ SECTIONS
         *(.text.startup)
         *(.text)
     }
-    .data : { *(.rodata .data .bss) }
+    .rodata : { *(.rodata) }
+    .data : { *(.data .bss) }
 }
