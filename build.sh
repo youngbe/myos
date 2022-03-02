@@ -21,8 +21,8 @@ as --64 boot/bootloader.s -o out/bootloader.o
 ld --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
 gcc "${CFLAGS_GLOBAL[@]}" \
-    -nostdinc -I include/public -I include/private -fpie -fno-builtin \
-    -nostdlib -T build/build.ld -pie \
+    -nostdinc -I include/public -I include/private -fpie -fno-builtin -flto -flto-compression-level=0 -fno-fat-lto-objects -fuse-linker-plugin -fwhole-program \
+    -nostdlib -T build/build.ld -pie -flto \
     kernel/main.c kernel/terminal_io.c \
     -o out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
