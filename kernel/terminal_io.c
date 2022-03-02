@@ -11,7 +11,7 @@ static size_t pos=0;
 void clear_t()
 {
     size_t* temp=(size_t *)0xb8000;
-    while ( 1 )
+    while ( true )
     {
         *(volatile size_t *)temp=0x0700070007000700;
         if ( temp >= (size_t *)(0xb8000+80*25*2-sizeof(size_t)) )
