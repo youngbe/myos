@@ -293,16 +293,16 @@ _start:
 1:
         # if clear位 为 0
         # 无效条目
-        testb   $1, %es:20(%edi)
+        testb   $1, %es:20(%di)
         jz      3f
 2:
-    cmpl    $0, %es:8(%edi)
+    cmpl    $0, %es:8(%di)
     jne     4f
-    cmpl    $0, %es:12(%edi)
+    cmpl    $0, %es:12(%di)
     je      3f
     # 有效条目
 4:
-    movb    %cl, %es:24(%edi)
+    movb    %cl, %es:24(%di)
     addw    $25, %di
     incl    .Ldata_memory_map_size
     # 无效条目
@@ -324,8 +324,21 @@ _start:
     movl    $0x534d4150, %edx
     int     $0x15
     jnc     5b
-    addw    $6, %sp
+    call    .Lclear
+    popl    %edi
+    popw    %es
 6:
+    # 检测至少有一块常规内存，读取才能算成功
+    movl    .Ldata_memory_map_size, %ecx
+    testl   %ecx, %ecx
+    jz      .Lerror
+7:
+    subw    $25, %di
+    cmpl    $1, %es:16(%di)
+    je      8f
+    loopl   7b
+    jmp     .Lerror
+8:
     call    .Lclear
 
     //打开 A20
