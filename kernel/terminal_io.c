@@ -11,9 +11,13 @@ static size_t pos=0;
 void clear_t()
 {
     size_t* temp=(size_t *)0xb8000;
-    while ( temp<(size_t *)(0xb8000+80*25*2) )
+    while ( 1 )
     {
-        *temp=0x0700070007000700;
+        *(volatile size_t *)temp=0x0700070007000700;
+        if ( temp >= (size_t *)(0xb8000+80*25*2-sizeof(size_t)) )
+        {
+            break;
+        }
         ++temp;
     }
     pos=0;
@@ -43,8 +47,8 @@ void putchar_t(char c)
             move_up();
             pos-=80;
         }
-        ((char *)0xb8000)[pos<<1]=c;
-        //*(char *)((uint16_t *)0xb8000+pos)=*str;
+        ((volatile char *)0xb8000)[pos<<1]=c;
+        //*(volatile char *)((uint16_t *)0xb8000+pos)=*str;
         ++pos;
     }
 }
@@ -76,8 +80,8 @@ void puts_t(const char * str)
                 move_up();
                 pos-=80;
             }
-            ((char *)0xb8000)[pos<<1]=*str;
-            //*(char *)((uint16_t *)0xb8000+pos)=*str;
+            ((volatile char *)0xb8000)[pos<<1]=*str;
+            //*(volatile char *)((uint16_t *)0xb8000+pos)=*str;
             ++pos;
         }
         ++str;
@@ -88,17 +92,16 @@ void move_up()
 {
     for (size_t* i=(size_t *)0xb8000; ;)
     {
-        *i=*(size_t *)((uint8_t*)i+160);
+        *(volatile size_t *)i=*(size_t *)((uint8_t*)i+160);
         if ( i >= (size_t *)(0xb8000+160*24-sizeof(size_t)) )
         {
             break;
         }
         ++i;
     }
-    
     for ( size_t* i=(size_t *)(0xb8000+160*24); ; )
     {
-        *i=0x0700070007000700;
+        *(volatile size_t *)i=0x0700070007000700;
         if ( i >= (size_t *)(0xb8000+160*25-sizeof(size_t)) )
         {
             break;
