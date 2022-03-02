@@ -41,6 +41,7 @@ void putchar_t(char c)
         if ( pos == 80*25-2 )
         {
             move_up();
+            pos-=80;
         }
         ((char *)0xb8000)[pos<<1]=c;
         //*(char *)((uint16_t *)0xb8000+pos)=*str;
@@ -73,6 +74,7 @@ void puts_t(const char * str)
             if ( pos == 80*25-1 )
             {
                 move_up();
+                pos-=80;
             }
             ((char *)0xb8000)[pos<<1]=*str;
             //*(char *)((uint16_t *)0xb8000+pos)=*str;
@@ -84,14 +86,23 @@ void puts_t(const char * str)
 
 void move_up()
 {
-    if ( pos <= 80 )
-    {
-        clear_t();
-        return;
-    }
-    pos-=80;
-    for (size_t* i=(size_t *)0xb8000, *max=(size_t *)((uint16_t *)0xb8000+pos); i<max; ++i)
+    for (size_t* i=(size_t *)0xb8000; ;)
     {
         *i=*(size_t *)((uint8_t*)i+160);
+        if ( i >= (size_t *)(0xb8000+160*24-sizeof(size_t)) )
+        {
+            break;
+        }
+        ++i;
+    }
+    
+    for ( size_t* i=(size_t *)(0xb8000+160*24); ; )
+    {
+        *i=0x0700070007000700;
+        if ( i >= (size_t *)(0xb8000+160*25-sizeof(size_t)) )
+        {
+            break;
+        }
+        ++i;
     }
 }
