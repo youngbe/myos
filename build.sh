@@ -20,6 +20,9 @@ PURE_C_FLAGS=("-fno-builtin" "-ffreestanding" "-nostdinc" "-nostdlib")
 if [ -z "$CC" ]; then
     CC="gcc"
 fi
+if [ -z "$HOSTCC" ]; then
+    HOSTCC="gcc"
+fi
 if [ -z "$AS" ]; then
     AS="as"
 fi
@@ -29,7 +32,7 @@ fi
 
 check_dependency()
 {
-    local temp=('set' "$AS" 'dd' "$LD" 'rm' 'qemu-img' 'echo' "$CC")
+    local temp=('set' "$AS" 'dd' "$LD" 'rm' 'qemu-img' 'echo' "$CC" "$HOSTCC")
     for i in "${temp[@]}"
     do
         if ! command -V "$i" >/dev/null 2>&1; then
@@ -52,7 +55,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINA
     -o out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
+$HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
 out/build_helper out/kernel.bin out/kernel_size
 
 dd conv=fdatasync if=out/bootloader.bin ibs=512 conv=sync of=out/boot.img
