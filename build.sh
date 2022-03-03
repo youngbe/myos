@@ -14,12 +14,22 @@ LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-lin
 # 可以加载到内存任意位置然后直接跳转过去就能执行
 PIE_BINARY_FLAGS=("-fpie" "-pie" "-T" "build/pie_binary.ld")
 
-# 移除所有库，编译纯C程序
+# 加上这个 FLAGS 将移除所有库，编译纯C程序
 PURE_C_FLAGS=("-fno-builtin" "-ffreestanding" "-nostdinc" "-nostdlib")
+
+if [ -z "$CC" ]; then
+    CC="gcc"
+fi
+if [ -z "$AS" ]; then
+    AS="as"
+fi
+if [ -z "$LD" ]; then
+    LD="ld"
+fi
 
 check_dependency()
 {
-    local temp=('set' 'as' 'dd' 'ld' 'rm' 'qemu-img' 'echo' 'gcc')
+    local temp=('set' "$AS" 'dd' "$LD" 'rm' 'qemu-img' 'echo' "$CC")
     for i in "${temp[@]}"
     do
         if ! command -V "$i" >/dev/null 2>&1; then
@@ -32,17 +42,17 @@ check_dependency()
 check_dependency
 mkdir out 2>/dev/null
 set -e
-as --64 boot/bootloader.s -o out/bootloader.o
-ld --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
+$AS --64 boot/bootloader.s -o out/bootloader.o
+$LD --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
 
-gcc "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal_io.c \
     -o out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
 
-gcc "${CFLAGS_GLOBAL[@]}" build/build_helper.c -o out/build_helper
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
 out/build_helper out/kernel.bin out/kernel_size
 
 dd conv=fdatasync if=out/bootloader.bin ibs=512 conv=sync of=out/boot.img
