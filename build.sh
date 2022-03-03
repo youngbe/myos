@@ -1,6 +1,21 @@
 #!/bin/bash
 
-CFLAGS_GLOBAL=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-stack-check" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-unwind-tables" "-fcf-protection=none" "-fno-split-stack")
+# GCC 通用 CFLAGS ，主要是开一些优化，关闭一些安全机制提升程序效率
+GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" \
+    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" \
+    "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
+    "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
+    "-fno-stack-check" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
+
+# 开启LTO优化的FLAGS
+LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
+
+# 加上这个 FLAGS 可以编译出纯二进制的可重定位可执行程序
+# 可以加载到内存任意位置然后直接跳转过去就能执行
+PIE_BINARY_FLAGS=("-fpie" "-pie" "-T" "build/pie_binary.ld")
+
+# 移除所有库，编译纯C程序
+PURE_C_FLAGS=("-fno-builtin" "-ffreestanding" "-nostdinc" "-nostdlib")
 
 check_dependency()
 {
@@ -20,9 +35,9 @@ set -e
 as --64 boot/bootloader.s -o out/bootloader.o
 ld --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
-gcc "${CFLAGS_GLOBAL[@]}" \
-    -nostdinc -I include/public -I include/private -fpie -fno-builtin -flto -flto-compression-level=0 -fno-fat-lto-objects -fuse-linker-plugin -fwhole-program \
-    -nostdlib -T build/build.ld -pie -flto \
+
+gcc "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" \
+    -I include/public -I include/private \
     kernel/main.c kernel/terminal_io.c \
     -o out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
