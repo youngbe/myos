@@ -18,16 +18,16 @@ PIE_BINARY_FLAGS=("-fpie" "-pie" "-T" "build/pie_binary.ld")
 PURE_C_FLAGS=("-fno-builtin" "-ffreestanding" "-nostdinc" "-nostdlib")
 
 if [ -z "$CC" ]; then
-    CC="gcc"
+    CC="x86_64-linux-gnu-gcc"
 fi
 if [ -z "$HOSTCC" ]; then
     HOSTCC="gcc"
 fi
 if [ -z "$AS" ]; then
-    AS="as"
+    AS="x86_64-linux-gnu-as"
 fi
 if [ -z "$LD" ]; then
-    LD="ld"
+    LD="x86_64-linux-gnu-ld"
 fi
 
 check_dependency()
