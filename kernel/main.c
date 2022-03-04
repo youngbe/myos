@@ -4,7 +4,7 @@
 
 #include <terminal_io.h>
 
-int main()
+void main()
 {
     clear_t();
     puts_t("hello world!1\n");
