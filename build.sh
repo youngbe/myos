@@ -15,7 +15,9 @@ LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-lin
 PIE_BINARY_FLAGS=("-fpie" "-pie" "-T" "build/pie_binary.ld")
 
 # 加上这个 FLAGS 将移除所有库，编译纯C程序
-PURE_C_FLAGS=("-fno-builtin" "-ffreestanding" "-nostdinc" "-nostdlib")
+PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib")
+
+KERNEL_CFLAGS=("-ffreestanding" "-mno-red-zone")
 
 if [ -z "$CC" ]; then
     CC="x86_64-linux-gnu-gcc"
@@ -49,7 +51,7 @@ $AS --64 boot/bootloader.s -o out/bootloader.o
 $LD --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" "${KERNEL_CFLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal_io.c \
     -o out/kernel.bin

@@ -439,6 +439,6 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
     xorq    %rax, %rax
-    movl    $0x20000, %edi
-    call    get_memory_map
+#movl    $0x20000, %edi
+#call    get_memory_map
     jmp     0x100000
