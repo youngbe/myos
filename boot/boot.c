@@ -5,6 +5,10 @@ typedef uint64_t size_t;
 
 #define NULL ((void *)0)
 
+static inline void * memcpy(void * destination, const void * source, size_t size);
+static inline void * memmove(void * destination, const void * source, size_t size);
+static inline void sort( void* base, size_t num, size_t width, int(*compare)(const void*,const void*) );
+
 // 由BIOS中断获得的Memeory_map信息
 struct Memory_map_entry
 {
@@ -15,10 +19,7 @@ struct Memory_map_entry
     uint8_t entry_size;
 }__attribute__ ((packed));
 
-static inline void * memcpy(void * destination, const void * source, size_t size);
-static inline void * memmove(void * destination, const void * source, size_t size);
 static inline int my_compare(const void *, const void *);
-static inline void sort( void* base, size_t num, size_t width, int(*compare)(const void*,const void*) );
 
 // 处理由BIOS中断获取的memory_map，返回 %rsp
 // 假设获取的memory_map中的各个条目间有互相重叠的部分：https://wiki.osdev.org/Memory_Map_(x86)
@@ -41,6 +42,10 @@ void *handle_memory_map( struct Memory_map_entry* entry_list, uint64_t entry_lis
         }
         if ( entry_list[i].size != 0 )
         {
+            if ( entry_list[i].type == 0 || entry_list[i].type > 5 )
+            {
+                return NULL;
+            }
             continue;
         }
 label1:
@@ -51,12 +56,37 @@ label1:
     {
         return NULL;
     }
-    struct Temp
+
+    uint64_t address_list[entry_list_size<<1];
+    address_list[0]=0;
+    uint64_t address_list_size=1;
+    for ( uint64_t i=0; i<entry_list_size; ++i )
     {
-        uint64_t address;
-        uint64_t index;
-    } address_list[2*entry_list_size];
-    sort(  );
+        address_list_size=insert(address, address_list_size, entry_list[i].base);
+        address_list_size=insert(address, address_list_size, entry_list[i].base+entry_list[i].size);
+    }
+
+    // 0 代表无效地址， 1 代表空闲属性， 2代表其他属性
+    uint8_t type[address_list_size];
+    memset(type, 0, address_list_size*sizeof(uint8_t));
+    for ( uint64_t i=0; i<address_list_size; ++i )
+    {
+        for ( uint64_t i2=0; i2<entry_list_size; ++i2 )
+        {
+            if ( entry_list[i2].base<=address_list[i] && address_list[i]<entry_list[i2].base+entry_list[i2].size )
+            {
+                if ( entry_list[i2].type!=1 )
+                {
+                    type[i]=2;
+                }
+                else if ( type[i] == 0 )
+                {
+                    type[i]=1;
+                }
+            }
+        }
+    }
+
 }
 
 inline int my_compare(const void *entry_a, const void *entry_b)

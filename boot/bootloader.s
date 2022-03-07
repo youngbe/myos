@@ -302,6 +302,10 @@ _start:
     je      3f
     # 有效条目
 4:
+    cmpl    $0, %es:16(%di)
+    je      .Lerror
+    cmpl    $5, %es:16(%di)
+    ja      .Lerror
     movb    %cl, %es:24(%di)
     addw    $25, %di
     incl    .Ldata_memory_map_size
