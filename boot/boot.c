@@ -7,6 +7,7 @@ typedef uint64_t size_t;
 
 static inline void * memcpy(void * destination, const void * source, size_t size);
 static inline void * memmove(void * destination, const void * source, size_t size);
+static inline void * memset ( void * ptr, int value, size_t num );
 static inline void sort( void* base, size_t num, size_t width, int(*compare)(const void*,const void*) );
 
 // 由BIOS中断获得的Memeory_map信息
@@ -67,8 +68,8 @@ label1:
     }
 
     // 0 代表无效地址， 1 代表空闲属性， 2代表其他属性
-    uint8_t type[address_list_size];
-    memset(type, 0, address_list_size*sizeof(uint8_t));
+    uint8_t type_list[address_list_size];
+    memset(type_list, 0, address_list_size*sizeof(uint8_t));
     for ( uint64_t i=0; i<address_list_size; ++i )
     {
         for ( uint64_t i2=0; i2<entry_list_size; ++i2 )
@@ -77,15 +78,31 @@ label1:
             {
                 if ( entry_list[i2].type!=1 )
                 {
-                    type[i]=2;
+                    type_list[i]=2;
                 }
-                else if ( type[i] == 0 )
+                else if ( type_list[i] == 0 )
                 {
-                    type[i]=1;
+                    type_list[i]=1;
                 }
             }
         }
     }
+
+    for (uint64_t i=1; i<address_list_size; ++i)
+    {
+        while ( type_list[i-1] == type_list[i] )
+        {
+            --address_list_size;
+            if ( i == address_list_size )
+            {
+                goto label_out;
+            }
+            memmove( &address_list[i], &address_list[i+1], (address_list_size-i)*sizeof(address_list[0]) );
+            memmove( &type_list[i], &type_list[i+1], (address_list_size-i)*sizeof(type_list[0]) );
+        }
+    }
+label_out:
+
 
 }
 
