@@ -7,6 +7,12 @@ SECTIONS
         *(.text.startup)
         *(.text)
     }
+    . = ALIGN(16);
     .rodata : { *(.rodata) }
-    .data : { *(.data .bss) }
+    . = ALIGN(16);
+    .data : {
+        *(.data)
+        . = ALIGN(16);
+        *(.bss)
+    }
 }
