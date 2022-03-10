@@ -46,13 +46,13 @@ ssize_t init_x2apic()
 inline const void *find_RSDP()
 {
     const void *result=NULL;
-    const void *ptr=(const void *)( (*(const uint32_t *)0x040E) << 4 );
+    const void *ptr=(const void *)( ((size_t)*(const uint16_t *)0x040E) << 4 );
     if ( ptr < (const void *)0x00080000 || ptr > (const void *)0x0009FFFF )
     {
         return NULL;
     }
     const char temp[8]={'R', 'S', 'D', ' ', 'P', 'T', 'R', ' '};
-    while ( ptr <= (const void *)0x0009FFFF )
+    do
     {
         if ( strncmp( ptr, temp, 8 ) == 0 && vaild_RSDP(ptr) )
         {
@@ -68,6 +68,7 @@ inline const void *find_RSDP()
         }
         ptr=(const uint8_t *)ptr+16;
     }
+    while ( ptr <= (const void *)0x0009FFFF );
     ptr=(const void *)0x000E0000;
     do
     {

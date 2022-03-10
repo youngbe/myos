@@ -17,7 +17,7 @@ PIE_BINARY_FLAGS=("-fpie" "-pie" "-T" "build/pie_binary.ld")
 # 加上这个 FLAGS 将移除所有库，编译纯C程序
 PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib")
 
-KERNEL_CFLAGS=("-ffreestanding" "-mno-red-zone")
+KERNEL_CFLAGS=("-ffreestanding" "-mno-red-zone" "-mgeneral-regs-only")
 
 if [ -z "$CC" ]; then
     CC="x86_64-linux-gnu-gcc"
@@ -48,6 +48,7 @@ check_dependency
 mkdir out 2>/dev/null
 set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
+    -mgeneral-regs-only \
     -S boot/init_x2apic.c -o out/init_x2apic.s
 $AS --64 boot/bootloader.s out/init_x2apic.s -o out/bootloader.o
 $LD --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
