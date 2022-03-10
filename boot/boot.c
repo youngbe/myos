@@ -1,14 +1,4 @@
-typedef unsigned long int uint64_t;
-typedef unsigned int uint32_t;
-typedef unsigned char uint8_t;
-typedef uint64_t size_t;
-
-#define NULL ((void *)0)
-
-static inline void * memcpy(void * destination, const void * source, size_t size);
-static inline void * memmove(void * destination, const void * source, size_t size);
-static inline void * memset ( void * ptr, int value, size_t num );
-static inline void sort( void* base, size_t num, size_t width, int(*compare)(const void*,const void*) );
+#include "libc.h"
 
 // 由BIOS中断获得的Memeory_map信息
 struct Memory_map_entry
@@ -122,61 +112,3 @@ inline int my_compare(const void *entry_a, const void *entry_b)
     }
 }
 
-inline void sort( void* base, size_t num, size_t width, int(*compare)(const void*,const void*) )
-{
-    for ( size_t i=1; i<num; ++i )
-    {
-        for ( size_t i2=0; i2<num-i; ++i2 )
-        {
-            if ( compare( (uint8_t *)base+width*i2, (uint8_t *)base+width*(i2+1) ) > 0 )
-            {
-                uint8_t temp[width];
-                memcpy(temp, (uint8_t *)base+width*i2, width );
-                memcpy((uint8_t *)base+width*i2, (uint8_t *)base+width*(i2+1) , width);
-                memcpy((uint8_t *)base+width*(i2+1), temp, width);
-            }
-        }
-    }
-}
-
-inline void * memcpy ( void * destination, const void * source, size_t num )
-{
-    {
-        void *temp_d=destination;
-        while (num!=0)
-        {
-            --num;
-            *(uint8_t*)temp_d=*(const uint8_t*)source;
-            temp_d=(uint8_t *)temp_d+1;
-            source=(const uint8_t *)source+1;
-        }
-    }
-    return destination;
-}
-
-inline void * memmove ( void * destination, const void * source, size_t num )
-{
-    if ( source > destination || destination >= (const void *)((const uint8_t *)source + num) )
-    {
-        void * temp_d=destination;
-        while (num!=0)
-        {
-            --num;
-            *(uint8_t*)temp_d=*(const uint8_t*)source;
-            temp_d=(uint8_t *)temp_d+1;
-            source=(const uint8_t *)source+1;
-        }
-    }
-    else if ( source == destination )
-    {
-    }
-    else
-    {
-        while (num!=0)
-        {
-            --num;
-            ((uint8_t*)destination)[num]=((const uint8_t*)source)[num];
-        }
-    }
-    return destination;
-}

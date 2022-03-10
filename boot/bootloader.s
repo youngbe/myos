@@ -112,9 +112,10 @@ _start:
     #call    .Lclear
 
     //读取Bootloader剩余部分
-    # 因为我的Bootloader有点大，512字节装不下，我写了两个扇区
-    // 同时读取内核头扇区
-    movw    $2, %ax
+    # 前 65 个扇区为bootloader
+    # 第 65 个扇区(从0开始数)为kernel_size
+    # 第 66 个扇区开始为kernel
+    movw    $65, %ax
     movl    $0x7e00000, %edx
     call    .Lread_hdd
 
@@ -357,7 +358,7 @@ _start:
     lgdtl   .Lgdt_ptr
     sti
 
-    movl    0x8000, %eax
+    movl    0xfe00, %eax
     # 现在%eax存放了需要读取的扇区数
 
     # while %eax > 0x7f
@@ -445,4 +446,5 @@ _start:
     xorq    %rax, %rax
 #movl    $0x20000, %edi
 #call    get_memory_map
+    call    init_x2apic
     jmp     0x100000
