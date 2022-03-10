@@ -62,7 +62,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINA
 $HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
 out/build_helper out/kernel.bin out/kernel_size
 
-dd conv=fdatasync if=out/bootloader.bin ibs=512*65 conv=sync of=out/boot.img
+dd conv=fdatasync if=out/bootloader.bin ibs=$((512*65)) conv=sync of=out/boot.img
 dd conv=fdatasync if=out/kernel_size ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
 dd conv=fdatasync if=out/kernel.bin ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
 rm -rf out/boot.vmdk
