@@ -34,7 +34,7 @@ struct ACPISDTHeader
 struct XSDT
 {
     struct ACPISDTHeader h;
-    uint64_t *PointerToOtherSDT;
+    uint64_t PointerToOtherSDT[];
 } __attribute__ ((packed));
 
 struct MADT
