@@ -95,7 +95,7 @@ ssize_t init_x2apic()
 inline size_t get_madt_list(const struct MADT** madt_ptr_list, const struct XSDT* xsdt_ptr)
 {
     size_t num=0;
-    const char temp[4]={'M', 'A', 'D', 'T'};
+    const char temp[4]={'A', 'P', 'I', 'C'};
     for ( size_t i=0, sum=(xsdt_ptr->h.Length-sizeof(struct ACPISDTHeader)) /sizeof(uint64_t); i<sum ; ++i )
     {
         if ( valid_ACPISDT( (const struct ACPISDTHeader *)xsdt_ptr->PointerToOtherSDT[i]) )
