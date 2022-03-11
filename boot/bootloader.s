@@ -428,7 +428,7 @@ _start:
 
 
 
-
+    // 加载内核
     movl    0xfe00, %eax
     # 现在%eax存放了需要读取的扇区数
 
@@ -454,32 +454,95 @@ _start:
     shll    $9, %eax
     call    .Lcopy_to_high
 
+
+
+
+    // 准备64位长模式的页表
     # 初始化页表 0x20000~0x21fff 共 8kb
     # 0x20000~0x20fff PML4
     # 0x21000~0x21fff PDPT 1GB页表
     movw    $0x2000, %cx
     movw    %cx, %es
     movl    $( 0x21000 + ( (1<<0) | (1<<1) ) ) , %ebx
-    movl    %ebx, %es:(%edi)
+    movl    %ebx, %es:(%di)
     addw    $4, %di
     movw    $0x3ff, %cx
     rep;    stosl
 
-    movl    $( (1<<0)|(1<<1)|(1<<7) ), %es:(%edi)
+    movl    $( (1<<0)|(1<<1)|(1<<7) ), %es:(%di)
     addw    $3, %di
 
     movw    $512, %cx
     xorl    %ebx, %ebx
 1:
-    movl    %ebx, %es:(%edi)
-    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %es:4(%edi)
+    movl    %ebx, %es:(%di)
+    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %es:4(%di)
     addw    $0x40, %bx
     addw    $8, %di
     loopw   1b
+    # 结束时，受污染寄存器：%si %di %es %bx
 
+
+
+    // 禁用 PIC 8259 中断
+    // 使用 x2APIC
+    cli
+
+    movb    $0x11, %al
+    outb    %al, $0x20
+    # io_wait
+    xorb    %al, %al
+    outb    %al, $0x80
+
+    movb    $0x11, %al
+    outb    %al, $0xa0
+    xorb    %al, %al
+    outb    %al, $0x80
+
+
+    movb    $0x20, %al
+    outb    %al, $0x21
+    xorb    %al, %al
+    outb    %al, $0x80
+
+    movb    $0x28, %al
+    outb    %al, $0xa1
+    xorb    %al, %al
+    outb    %al, $0x80
+
+
+    movb    $0x4, %al
+    outb    %al, $0x21
+    xorb    %al, %al
+    outb    %al, $0x80
+
+    movb    $0x2, %al
+    outb    %al, $0xa1
+    xorb    %al, %al
+    outb    %al, $0x80
+
+
+    movb    $0x1, %al
+    outb    %al, $0x21
+    xorb    %al, %al
+    outb    %al, $0x80
+
+    movb    $0x1, %al
+    outb    %al, $0xa1
+    xorb    %al, %al
+    outb    %al, $0x80
+
+
+    movb    $0xff, %al
+    outb    %al, $0xa1
+    outb    %al, $0x21
+
+
+
+
+    // 进入64位长模式
     # 重新加载gdt，删去不必要的段(16位和32位)
     movw    $(.Lgdt64_end-.Lgdt_null-1), .Lgdt_ptr
-    cli
     lgdtl   .Lgdt_ptr
 
     # 设置 %cr3
@@ -515,8 +578,6 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
     xorq    %rax, %rax
-#movl    $0x20000, %edi
-#call    get_memory_map
     call    init_x2apic
     movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address
