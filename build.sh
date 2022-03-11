@@ -48,12 +48,12 @@ check_dependency
 mkdir out 2>/dev/null
 set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -mno-red-zone \
-    -S boot/init_x2apic.c -o out/init_x2apic.s
+    -mgeneral-regs-only -mno-red-zone -m32 \
+    -S boot/handle_memory_map.c -o out/handle_memory_map.s
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
     -mgeneral-regs-only -mno-red-zone \
     -S boot/init_x2apic.c -o out/init_x2apic.s
-$AS --64 boot/bootloader.s out/init_x2apic.s -o out/bootloader.o
+$AS --64 boot/bootloader.s out/init_x2apic.s out/handle_memory_map.s -o out/bootloader.o
 $LD --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
 
 

@@ -4,8 +4,6 @@
     .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
 .Lstack_end_and_heap_start:
 
-.Lkernel_start_address:
-    .long 0
 .Lkernel_load_next_address:
     .long 0
 .Lkernel_start_esp:
@@ -25,6 +23,9 @@ _start:
     # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
 .Ldata_sector_num:
     .long 1
+
+.Lkernel_start_address:
+    .quad 0
 
 .Ldata_memory_map_size:
     .long 0
@@ -249,6 +250,22 @@ _start:
     .byte 0xaa
 
 .Lpart2:
+    //进入保护模式的初始化
+    # 打开A20以及lgdt
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+    cli
+    lgdtl   .Lgdt_ptr
+    sti
+
+
+
+
 
     // 侦测内存分布
     // save to 0x20000
@@ -350,17 +367,6 @@ _start:
 
 
 
-    //打开 A20
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
-    call    .Lclear
-
-    cli
-    lgdtl   .Lgdt_ptr
-    sti
 
 
     // handle memory map
@@ -381,9 +387,12 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
 
-    movl    $0x20000, %ecx
-    movl    $0x10000, %edx
+    pushl   $0x20000
+    pushl   .Ldata_memory_map_size
+    pushl   0xfe00
+    pushl   $0x10000
     call    handle_memory_map
+    addl    $16, %esp
     movl    %eax, .Lkernel_start_address
     movl    %eax, .Lkernel_load_next_address
     movl    %edx, .Lkernel_start_esp
@@ -445,16 +454,16 @@ _start:
     shll    $9, %eax
     call    .Lcopy_to_high
 
-    # 初始化页表 0x10000~0x11fff 共 8kb
-    # 0x10000~0x10fff PML4
-    # 0x11000~0x11fff PDPT 1GB页表
-    movw    $0x1000, %cx
+    # 初始化页表 0x20000~0x21fff 共 8kb
+    # 0x20000~0x20fff PML4
+    # 0x21000~0x21fff PDPT 1GB页表
+    movw    $0x2000, %cx
     movw    %cx, %es
-    movl    $( 0x11000 + ( (1<<0) | (1<<1) ) ) , %ebx
+    movl    $( 0x21000 + ( (1<<0) | (1<<1) ) ) , %ebx
     movl    %ebx, %es:(%edi)
     addw    $4, %di
     movw    $0x3ff, %cx
-    rep     stosl
+    rep;    stosl
 
     movl    $( (1<<0)|(1<<1)|(1<<7) ), %es:(%edi)
     addw    $3, %di
@@ -474,7 +483,7 @@ _start:
     lgdtl   .Lgdt_ptr
 
     # 设置 %cr3
-    movl    $0x10000, %eax
+    movl    $0x20000, %eax
     movl    %eax, %cr3
 
     # 设置 %cr4 的PAE位
@@ -506,8 +515,8 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
     xorq    %rax, %rax
-    movl    .Lkernel_start_esp, %esp
 #movl    $0x20000, %edi
 #call    get_memory_map
     call    init_x2apic
+    movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address
