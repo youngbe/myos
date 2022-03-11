@@ -3,6 +3,14 @@
     .section .bss.startup
     .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
 .Lstack_end_and_heap_start:
+
+.Lkernel_start_address:
+    .long 0
+.Lkernel_load_next_address:
+    .long 0
+.Lkernel_start_esp:
+    .long 0
+
 .Lheap_end:
 
     # 此处地址0x7c00，以下部分将会被加载到内存执行
@@ -17,10 +25,6 @@ _start:
     # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
 .Ldata_sector_num:
     .long 1
-
-    # 内核代码接下来要加载位置
-.Ldata_protected_mode_code:
-    .long 0x100000
 
 .Ldata_memory_map_size:
     .long 0
@@ -186,7 +190,7 @@ _start:
     jmp     .
 
 
-# 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
+# 从 0x30000拷贝 %eax 个字节的数据到 *.Lkernel_load_next_address
 .Lcopy_to_high:
     pushl   %eax
     call    .Lclear
@@ -205,8 +209,8 @@ _start:
     movw    %ax, %ss
 
     popl    %ecx
-    movl    .Ldata_protected_mode_code, %edi
-    addl    %ecx, .Ldata_protected_mode_code
+    movl    .Lkernel_load_next_address, %edi
+    addl    %ecx, .Lkernel_load_next_address
     movb    %cl, %dl
     addb    $0b11, %dl
     shrl    $2, %ecx
@@ -247,6 +251,7 @@ _start:
 .Lpart2:
 
     // 侦测内存分布
+    // save to 0x20000
     # https://wiki.osdev.org/Detecting_Memory_(x86)
     // 第一次调用：%eax=0xe820, %ebx=0, %ecx=24, %edx=smap, %es:%edi = 地址
     // 返回 cflag位，%eax=smap, %ebx保留，%cl=位数
@@ -267,11 +272,6 @@ _start:
     jne     .Lerror
     testl   %ebx, %ebx
     jz      .Lerror
-
-
-
-
-
     // 每次获取完一个条目后的处理
 5:
     pushl   %ebx
@@ -312,9 +312,6 @@ _start:
     incl    .Ldata_memory_map_size
     # 无效条目
 3:
-
-
-
     // 读取下一个条目
     # 没有下一个条目了
     testl   %ebx, %ebx
@@ -345,6 +342,13 @@ _start:
     jmp     .Lerror
 8:
     call    .Lclear
+    // dectect memory complete
+
+
+
+
+
+
 
     //打开 A20
     movw    $0x2401, %ax
@@ -357,6 +361,64 @@ _start:
     cli
     lgdtl   .Lgdt_ptr
     sti
+
+
+    // handle memory map
+    # 1. goto protected mode
+    # 2. run handle_memory_map, this will find a place to load kernel
+    # 3. back to real mode
+    cli
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
+    .code32
+1:
+    movl    $(.Lgdt_data32-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+
+    movl    $0x20000, %ecx
+    movl    $0x10000, %edx
+    call    handle_memory_map
+    movl    %eax, .Lkernel_start_address
+    movl    %eax, .Lkernel_load_next_address
+    movl    %edx, .Lkernel_start_esp
+
+    // 返回实模式
+    movl    $(.Lgdt_data16-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
+    .code16
+1:
+    movl    %cr0, %eax
+    andl    $0xfffffffe, %eax
+    movl    %eax, %cr0
+    ljmpl   $0, $1f
+1:
+    xorl    %eax, %eax
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
+    sti
+    call    .Lclear
+
+
+
+
+
+
+
+
 
     movl    0xfe00, %eax
     # 现在%eax存放了需要读取的扇区数
@@ -444,7 +506,8 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
     xorq    %rax, %rax
+    movl    .Lkernel_start_esp, %esp
 #movl    $0x20000, %edi
 #call    get_memory_map
     call    init_x2apic
-    jmp     0x100000
+    jmp     *.Lkernel_start_address
