@@ -387,10 +387,10 @@ _start:
     movw    %ax, %gs
     movw    %ax, %ss
 
-    pushl   $0x20000
-    pushl   .Ldata_memory_map_size
-    pushl   0xfe00
     pushl   $0x10000
+    pushl   0xfe00
+    pushl   .Ldata_memory_map_size
+    pushl   $0x20000
     call    handle_memory_map
     addl    $16, %esp
     movl    %eax, .Lkernel_start_address

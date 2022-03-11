@@ -48,7 +48,7 @@ check_dependency
 mkdir out 2>/dev/null
 set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -mno-red-zone -m32 \
+    -mgeneral-regs-only -mno-red-zone -m32 -fno-pie \
     -S boot/handle_memory_map.c -o out/handle_memory_map.s
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
     -mgeneral-regs-only -mno-red-zone \
