@@ -111,7 +111,7 @@ _start:
     jc      .Lerror
     testb   %ah, %ah
     jne     .Lerror
-    cmpw    $0x200, %ss:24(%sp)
+    cmpw    $0x200, %ss:24(%esp)
     jne     .Lerror
     addw    $0x1e, %sp
     call    .Lclear
@@ -121,11 +121,11 @@ _start:
     # https://wiki.osdev.org/CPUID
     pushfl
     pushfl
-    xorl    $0x00200000, %ss:(%esp)
+    xorl    $0x00200000, (%esp)
     popfl
     pushfl
     popl    %eax
-    xorl    %ss:(%esp), %eax
+    xorl    (%esp), %eax
     popfl
     testl   $0x00200000, %eax
     jz      .Lerror
