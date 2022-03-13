@@ -69,5 +69,6 @@ out/build_helper out/kernel.bin out/kernel_size
 dd conv=fdatasync if=out/bootloader.bin ibs=$((512*65)) conv=sync of=out/boot.img
 dd conv=fdatasync if=out/kernel_size ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
 dd conv=fdatasync if=out/kernel.bin ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
+dd conv=fdatasync if=/dev/zero ibs=1M count=2 of=out/boot.img oflag=append conv=notrunc
 rm -rf out/boot.vmdk
 qemu-img convert -f raw -O vmdk out/boot.img out/boot.vmdk
