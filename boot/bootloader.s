@@ -250,6 +250,46 @@ _start:
     .byte 0xaa
 
 .Lpart2:
+    // CPU检测
+    # 是否支持 cpuid 指令
+    # https://wiki.osdev.org/CPUID
+    pushfl
+    pushfl
+    xorl    $0x00200000, %ss:(%esp)
+    popfl
+    pushfl
+    popl    %eax
+    xorl    %ss:(%esp), %eax
+    popfl
+    testl   $0x00200000, %eax
+    jz      .Lerror
+
+    movl    $1, %eax
+    cpuid
+    # 存在 msr 寄存器
+    testb   $(1<<5), %dl
+    jz      .Lerror
+    # 存在 Local APIC
+    testw   $(1<<9), %dx
+    jz      .Lerror
+    # 支持 x2APIC
+    testl   $(1<<21), %ecx
+    jz      .Lerror
+    # 支持 TSC_Deadline
+    testl   $(1<<24), %ecx
+    jz      .Lerror
+    movl    $0x1b, %ecx
+    # APIC is enabled
+    rdmsr
+    testw   $(1<<11), %ax
+    jz      .Lerror
+    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
+    movl    $6, %eax
+    cpuid
+    testb   $(1<<2), %al
+    jz      .Lerror
+
+
     //进入保护模式的初始化
     # 打开A20以及lgdt
     movw    $0x2401, %ax
@@ -420,6 +460,8 @@ _start:
     movw    %ax, %es
     sti
     call    .Lclear
+    cmpl    $0, .Lkernel_start_address
+    je      .Lerror
 
 
 
