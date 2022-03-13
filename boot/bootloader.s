@@ -100,21 +100,76 @@ _start:
     call    .Lclear
 
     //检查一个扇区是不是512字节
-    # qemu不支持int $0x13, %ah=$0x48
-    #subw    $0x1e, %sp
-    ##movw    %ss, %ax
-    ##movw    %ax, %ds
-    #movw    %sp, %si
-    #movb    $0x48, %ah
-    #movb    $0x80, %dl
-    #int     $0x13
-    #jc      .Lerror
-    #testb   %ah, %ah
-    #jne     .Lerror
-    #cmpw    $0x200, 24(%esp)
-    #jne     .Lerror
-    #addw    $0x1e, %sp
-    #call    .Lclear
+    # qemu不支持此功能
+    subw    $0x1e, %sp
+    movw    %ss, %ax
+    movw    %ax, %ds
+    movw    %sp, %si
+    movb    $0x48, %ah
+    movb    $0x80, %dl
+    int     $0x13
+    jc      .Lerror
+    testb   %ah, %ah
+    jne     .Lerror
+    cmpw    $0x200, %ss:24(%sp)
+    jne     .Lerror
+    addw    $0x1e, %sp
+    call    .Lclear
+
+    // CPU检测
+    # 是否支持 cpuid 指令
+    # https://wiki.osdev.org/CPUID
+    pushfl
+    pushfl
+    xorl    $0x00200000, %ss:(%esp)
+    popfl
+    pushfl
+    popl    %eax
+    xorl    %ss:(%esp), %eax
+    popfl
+    testl   $0x00200000, %eax
+    jz      .Lerror
+
+    movl    $1, %eax
+    cpuid
+    # 存在 msr 寄存器
+    testb   $(1<<5), %dl
+    jz      .Lerror
+    # 存在 Local APIC
+    testw   $(1<<9), %dx
+    jz      .Lerror
+    # 支持 x2APIC
+    testl   $(1<<21), %ecx
+    jz      .Lerror
+    # 支持 TSC_Deadline
+    testl   $(1<<24), %ecx
+    jz      .Lerror
+    movl    $0x1b, %ecx
+    # APIC is enabled
+    rdmsr
+    testw   $(1<<11), %ax
+    jz      .Lerror
+    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
+    movl    $6, %eax
+    cpuid
+    testb   $(1<<2), %al
+    jz      .Lerror
+
+    call    .Lclear
+
+
+    //进入保护模式的初始化
+    # 打开A20以及lgdt
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+    cli
+    lgdtl   .Lgdt_ptr
+    sti
 
     //读取Bootloader剩余部分
     # 前 65 个扇区为bootloader
@@ -190,6 +245,9 @@ _start:
     int     $0x10
     jmp     .
 
+    .fill 510-( . - _start ), 1, 0
+    .byte 0x55
+    .byte 0xaa
 
 # 从 0x30000拷贝 %eax 个字节的数据到 *.Lkernel_load_next_address
 .Lcopy_to_high:
@@ -245,68 +303,13 @@ _start:
     jmp     .Lclear
 
 
-    .fill 510-( . - _start ), 1, 0
-    .byte 0x55
-    .byte 0xaa
 
-.Lpart2:
-    // CPU检测
-    # 是否支持 cpuid 指令
-    # https://wiki.osdev.org/CPUID
-    pushfl
-    pushfl
-    xorl    $0x00200000, %ss:(%esp)
-    popfl
-    pushfl
-    popl    %eax
-    xorl    %ss:(%esp), %eax
-    popfl
-    testl   $0x00200000, %eax
-    jz      .Lerror
-
-    movl    $1, %eax
-    cpuid
-    # 存在 msr 寄存器
-    testb   $(1<<5), %dl
-    jz      .Lerror
-    # 存在 Local APIC
-    testw   $(1<<9), %dx
-    jz      .Lerror
-    # 支持 x2APIC
-    testl   $(1<<21), %ecx
-    jz      .Lerror
-    # 支持 TSC_Deadline
-    testl   $(1<<24), %ecx
-    jz      .Lerror
-    movl    $0x1b, %ecx
-    # APIC is enabled
-    rdmsr
-    testw   $(1<<11), %ax
-    jz      .Lerror
-    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
-    movl    $6, %eax
-    cpuid
-    testb   $(1<<2), %al
-    jz      .Lerror
-
-
-    //进入保护模式的初始化
-    # 打开A20以及lgdt
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
-    call    .Lclear
-
-    cli
-    lgdtl   .Lgdt_ptr
-    sti
 
 
 
 
 
+.Lpart2:
     // 侦测内存分布
     // save to 0x20000
     # https://wiki.osdev.org/Detecting_Memory_(x86)
