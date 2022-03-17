@@ -39,22 +39,20 @@ _start:
     # https://elixir.bootlin.com/linux/v5.16.11/source/arch/x86/boot/compressed/head_64.S#L701
     */
 
-    // 上面一段注释还没搞明白，暂时弃用
     // gdt
-    .balign 8
+    # 在 NULL Descripter 上存放gdt，而不是全0
+    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
 .Lgdt_null:
-    .quad 0
+.Lgdt_ptr:
+    .word .Lgdt_end - .Lgdt_null -1
+    .long .Lgdt_null
+    .word 0
 .Lgdt_code64:
     .long 0
     .byte 0
     .byte 0b10011010
     .byte 0b00100000
     .byte 0
-.Lgdt_data64:
-    .long 0
-    .byte 0
-    .byte 0b10010010
-    .word 0
 .Lgdt64_end:
 .Lgdt_code32:
     .word 0xffff
@@ -82,10 +80,8 @@ _start:
     .byte 0
     .byte 0b10010011
     .word 0
+.Lgdt_end:
 
-.Lgdt_ptr:
-    .word .Lgdt_ptr - .Lgdt_null -1
-    .long .Lgdt_null
 
 .Lreal_start:
     xorl    %eax, %eax
@@ -514,14 +510,14 @@ _start:
     movw    $0x3ff, %cx
     rep;    stosl
 
-    movl    $( (1<<0)|(1<<1)|(1<<7) ), %es:(%di)
+    movl    $( (1<<0)|(1<<1)|(1<<3)|(1<<4)|(1<<7) ), %es:(%di)
     addw    $3, %di
 
     movw    $512, %cx
     xorl    %ebx, %ebx
 1:
     movl    %ebx, %es:(%di)
-    movl    $( ((1<<0)|(1<<1)|(1<<7))<<8 ), %es:4(%di)
+    movl    $( ((1<<0)|(1<<1)|(1<<3)|(1<<4)|(1<<7))<<8 ), %es:4(%di)
     addw    $0x40, %bx
     addw    $8, %di
     loopw   1b
@@ -608,21 +604,19 @@ _start:
     call    .Lclear
 
     # 设置 %cr0 的 PE位 和 PG位
-    movl    %cr0, %eax
-    orl     $( (1 << 31) | (1 << 0) ), %eax
-    movl    %eax, %cr0
+    movl    %cr0, %ebx
+    orl     $( (1 << 31) | (1 << 0) ), %ebx
+    movl    %ebx, %cr0
 
     // 进入内核
     ljmpl   $(.Lgdt_code64 - .Lgdt_null), $1f
     .code64
 1:
-    movw    $(.Lgdt_data64 - .Lgdt_null), %ax
-    movw    %ax, %ds
-    movw    %ax, %es
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    xorq    %rax, %rax
+    movw    %ax, %ds
+    movw    %ax, %es
     call    init_x2apic
     movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address
