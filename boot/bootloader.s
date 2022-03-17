@@ -30,15 +30,6 @@ _start:
 .Ldata_memory_map_size:
     .long 0
 
-    /*
-    // gdt
-    # 八字节对齐也是抄自Linux源代码
-    .balign	8
-    # 抄自Linux源代码，使第一个段描述符(原本应该使八字节全0)，存放gdt
-    # 从而节省空间
-    # https://elixir.bootlin.com/linux/v5.16.11/source/arch/x86/boot/compressed/head_64.S#L701
-    */
-
     // gdt
     # 在 NULL Descripter 上存放gdt，而不是全0
     # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
@@ -604,9 +595,9 @@ _start:
     call    .Lclear
 
     # 设置 %cr0 的 PE位 和 PG位
-    movl    %cr0, %ebx
-    orl     $( (1 << 31) | (1 << 0) ), %ebx
-    movl    %ebx, %cr0
+    movl    %cr0, %ecx
+    orl     $( (1 << 31) | (1 << 0) ), %ecx
+    movl    %ecx, %cr0
 
     // 进入内核
     ljmpl   $(.Lgdt_code64 - .Lgdt_null), $1f
