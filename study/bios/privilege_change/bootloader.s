@@ -45,7 +45,7 @@ _start:
     .byte 0b11110010
     .word 0
 .Lgdt_called_gate64:
-    .word .Lback_to_su
+    .word .Lsupervisor_service
     .word .Lgdt_code64-.Lgdt_null
     .byte 0
     .byte 0b11101100
@@ -68,10 +68,12 @@ _start:
 
 .Ltss:
     .long 0
+    # 指定切换到低特权级时的栈(%rsp)
     .quad 0x50000
     .quad 0x0
     .quad 0x0
     .quad 0
+    # IST 字段，目前没有用到
     .quad 0x0
     .quad 0x0
     .quad 0x0
@@ -80,6 +82,7 @@ _start:
     .quad 0x0
     .quad 0x0
     .quad 0
+    # I/O Map base address，目前不知道干什么用的
     .long 0
 
 .Lreal_start:
@@ -307,36 +310,52 @@ _start:
     movw    %ax, %ds
     movw    %ax, %es
 
+    movb    $'s', 0xb8008
+
+    # 加载TSS，务必在进入64位后再加载64位TSS
     movw    $( .Lgdt_tss64 - .Lgdt_null ), %ax
     ltrw    %ax
 
-    # %ss
+    # 指定切换到用户态时的%ss
+    # 0b11指定特权级为用户态，这个是必须的，且必须使用用户态数据段
     pushq   $( .Lgdt_data64_user - .Lgdt_null + 0b11 )
-    # %rsp
+    # 指定切换到用户态时的%rsp
     pushq   $0x60000
-    # %cs
+    # 指定切换到用户态时的%cs
+    # 0b11指定特权级为用户态
     pushq   $( .Lgdt_code64_user - .Lgdt_null + 0b11 )
-    # %rip
-    pushq   $.Lgo_to_user
-    movb    $'k', 0xb8006
+    # 指定切换到用户态时的%rip
+    pushq   $.Luser_start
+    # 切换到用户态（从.Luser_start开始执行）
     lretq
 
 
-.Lgo_to_user:
+.Luser_start:
     movb    $'x', 0xb8000
+
+    movb    $'y', %al
+    movq    $0xb8002, %rdi
+    pushq   $(.Lgdt_called_gate64 - .Lgdt_null)
+    pushq   $0
+    # (%rsp) == lcallq的目标%rip
+    # 8(%rsp) == lcallq的目标%cs
     # lcallq
-    rex.W lcalll *.Lback_to_su_address
-    lcalll  *.Lback_to_su_address2
-    movb    $'z', 0xb8004
+    rex.W lcalll *(%rsp)
+    addq    $16, %rsp
+
+    movb    $'z', %al
+    movq    $0xb8004, %rdi
+    subq    $8, %rsp
+    movl    $0, (%rsp)
+    movl    $(.Lgdt_called_gate64 - .Lgdt_null), 4(%rsp)
+    # (%rsp) == lcalll的目标%rip
+    # 4(%rsp) == lcalll的目标%cs
+    lcalll  *(%rsp)
+    addq    $8, %rsp
+
+    movb    $'u', 0xb8006
     jmp     .
 
-.Lback_to_su:
-    movb    $'y', 0xb8002
+.Lsupervisor_service:
+    movb    %al, (%rdi)
     lretq
-
-.Lback_to_su_address:
-    .quad 0x0
-    .quad .Lgdt_called_gate64 - .Lgdt_null
-.Lback_to_su_address2:
-    .long 0x0
-    .long .Lgdt_called_gate64 - .Lgdt_null
