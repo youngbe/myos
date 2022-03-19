@@ -194,7 +194,7 @@ _start:
 
 .Lpart2:
 
-    // CPU检测
+    // 硬件检测以及设置
     # 是否支持 cpuid 指令
     # https://wiki.osdev.org/CPUID
     pushfl
@@ -233,7 +233,26 @@ _start:
     testb   $(1<<2), %al
     jz      .Lerror
 
+    # clear CR4.CET CR4.PKS CR4.PKE
+    movl    %cr4, %eax
+    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
+    jz      1f
+    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
+    movl    %eax, %cr4
+1:
+
+    # clear CR0.WP
+    movl    %cr0, %eax
+    testl   $(1<<16), %eax
+    jz      1f
+    andl    $( ~(1<<16) ), %eax
+    movl    %eax, %cr0
+1:
+
     call    .Lclear
+
+
+
 
 
     //进入保护模式的初始化
@@ -252,6 +271,7 @@ _start:
     # 0x21000~0x21fff PDPT 1GB页表
     movw    $0x2000, %cx
     movw    %cx, %es
+    # 从%cr3到找到物理页的过程中，必须所有U/S位都是1，它才是用户页，否则是系统页
     movl    $( 0x21000 + ( (1<<0) | (1<<1) | (1<<2) ) ) , %ebx
     movl    %ebx, %es:(%di)
     addw    $4, %di
@@ -336,26 +356,39 @@ _start:
     movb    $'y', %al
     movq    $0xb8002, %rdi
     pushq   $(.Lgdt_called_gate64 - .Lgdt_null)
-    pushq   $0
+    pushq   $0xfffffff
     # (%rsp) == lcallq的目标%rip
     # 8(%rsp) == lcallq的目标%cs
-    # lcallq
+    # rex.W lcalll == lcallq (gnu as 的缺陷，clang 就可以编译lcallq，两者的二进制代码相同)
     rex.W lcalll *(%rsp)
+    # 因为lcall的是一个门，所以目标%rip将被忽略，填什么都行
     addq    $16, %rsp
 
     movb    $'z', %al
     movq    $0xb8004, %rdi
     subq    $8, %rsp
-    movl    $0, (%rsp)
+    movl    $0xffffff, (%rsp)
     movl    $(.Lgdt_called_gate64 - .Lgdt_null), 4(%rsp)
     # (%rsp) == lcalll的目标%rip
     # 4(%rsp) == lcalll的目标%cs
     lcalll  *(%rsp)
+    # 因为lcall的是一个门，所以目标%rip将被忽略，填什么都行
     addq    $8, %rsp
 
     movb    $'u', 0xb8006
     jmp     .
 
+
+
+
+# 高特权级服务
 .Lsupervisor_service:
+    # 当从低特权级(特权级数字较大)lcall进来时，CPU将做以下的事：
+    # 1. 从TSS中选取新的栈(%rsp)，修改%rsp的值
+    # 2. %ss 变为 0
+    # 3. 将lcall时的 %ss 入栈
+    # 4. 将lcall时的 %rsp 入栈
+    # 5. 将lcall时的 %cs 入栈
+    # 6. 将lcall时的 %rip 入栈
     movb    %al, (%rdi)
     lretq
