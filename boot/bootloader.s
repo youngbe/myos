@@ -33,6 +33,8 @@ _start:
     // gdt
     # 在 NULL Descripter 上存放gdt，而不是全0
     # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
+    # 根据英特尔白皮书3a卷 3.5.1 ，应该对齐8字节以获得更好的性能
+    .balign 8
 .Lgdt_null:
 .Lgdt_ptr:
     .word .Lgdt_end - .Lgdt_null -1
@@ -292,9 +294,8 @@ _start:
     testb   %ah, %ah
     jnz     .Lerror
     call    .Lclear
-    cli
+
     lgdtl   .Lgdt_ptr
-    sti
 
 
 
