@@ -18,73 +18,6 @@ _start:
 .Ldata_sector_num:
     .long 1
 
-
-    // gdt
-    # 在 NULL Descripter 上存放gdt，而不是全0
-    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
-.Lgdt_null:
-.Lgdt_ptr:
-    .word .Lgdt_end - .Lgdt_null -1
-    .long .Lgdt_null
-    .word 0
-.Lgdt_code64:
-    .long 0
-    .byte 0
-    .byte 0b10011010
-    .byte 0b00100000
-    .byte 0
-.Lgdt_code64_user:
-    .long 0
-    .byte 0
-    .byte 0b11111010
-    .byte 0b00100000
-    .byte 0
-.Lgdt_data64_user:
-    .long 0
-    .byte 0
-    .byte 0b11110010
-    .word 0
-.Lgdt_called_gate64:
-    .word .Lsupervisor_service
-    .word .Lgdt_code64-.Lgdt_null
-    .byte 0
-    .byte 0b11101100
-    .word 0
-    .quad 0
-.Lgdt_tss64:
-    .word 0x67
-    # base 0:15
-    .word .Ltss
-    # base 16:23
-    .byte 0
-    .byte 0b10001001
-    .byte 0
-    # base 24:31
-    .byte 0
-    # base 32:63
-    .long 0
-    .long 0
-.Lgdt_end:
-
-.Ltss:
-    .long 0
-    # 指定切换到低特权级时的栈(%rsp)
-    .quad 0x50000
-    .quad 0x0
-    .quad 0x0
-    .quad 0
-    # IST 字段，目前没有用到
-    .quad 0x0
-    .quad 0x0
-    .quad 0x0
-    .quad 0x0
-    .quad 0x0
-    .quad 0x0
-    .quad 0x0
-    .quad 0
-    # I/O Map base address，目前不知道干什么用的
-    .long 0
-
 .Lreal_start:
     xorl    %eax, %eax
     cli
@@ -97,8 +30,16 @@ _start:
     sti
     call    .Lclear
 
+    // 打开A20
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
     //检查一个扇区是不是512字节
-    # qemu不支持此功能
+    # qemu不支持此BIOS扩展
     subw    $0x1e, %sp
     movw    %ss, %ax
     movw    %ax, %ds
@@ -113,6 +54,66 @@ _start:
     jne     .Lerror
     addw    $0x1e, %sp
     call    .Lclear
+
+    // 硬件兼容性检测及设置
+
+    # 1. 检测是否支持 cpuid 指令
+    # https://wiki.osdev.org/CPUID
+    pushfl
+    pushfl
+    xorl    $0x00200000, (%esp)
+    popfl
+    pushfl
+    popl    %eax
+    xorl    (%esp), %eax
+    popfl
+    testl   $0x00200000, %eax
+    jz      .Lerror
+
+    movl    $1, %eax
+    cpuid
+    # 2. 检测是否存在 msr 寄存器
+    testb   $(1<<5), %dl
+    jz      .Lerror
+    # 3. 存在 Local APIC
+    testw   $(1<<9), %dx
+    jz      .Lerror
+    # 4. 支持 x2APIC
+    testl   $(1<<21), %ecx
+    jz      .Lerror
+    # 5. 支持 TSC_Deadline
+    testl   $(1<<24), %ecx
+    jz      .Lerror
+    movl    $0x1b, %ecx
+    # 6. APIC is enabled
+    rdmsr
+    testw   $(1<<11), %ax
+    jz      .Lerror
+    # 7. 选自英特尔3a卷
+    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
+    movl    $6, %eax
+    cpuid
+    testb   $(1<<2), %al
+    jz      .Lerror
+
+    # 8. clear CR4.CET CR4.PKS CR4.PKE
+    movl    %cr4, %eax
+    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
+    jz      1f
+    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
+    movl    %eax, %cr4
+1:
+
+    # clear CR0.WP
+    movl    %cr0, %eax
+    testl   $(1<<16), %eax
+    jz      1f
+    andl    $( ~(1<<16) ), %eax
+    movl    %eax, %cr0
+1:
+
+    call    .Lclear
+
 
     //读取Bootloader剩余部分
     # 前 65 个扇区为bootloader
@@ -179,12 +180,17 @@ _start:
     .ascii "error!"
 2:
 .Lerror:
-    movl    $0x1300, %eax
-    movl    $0b00001111, %ebx
-    movl    $(2b-1b), %ecx
-    xorl    %edx, %edx
-    movw    %dx, %es
-    movl    $1b, %ebp
+    # clear screen
+    call    .Lclear
+    movb    $0x07, %ah
+    movb    $0b00001111, %bh
+    movw    $0x184f, %dx
+    int     $0x10
+    call    .Lclear
+    movb    $0x13, %ah
+    movb    $0b00001111, %bl
+    movw    $(2b-1b), %cx
+    movw    $1b, %bp
     int     $0x10
     jmp     .
 
@@ -192,77 +198,77 @@ _start:
     .byte 0x55
     .byte 0xaa
 
+
+    // gdt
+    # 在 NULL Descripter 上存放gdt，而不是全0
+    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
+    # 根据英特尔白皮书3a卷 3.5.1 ，应该对齐8字节以获得更好的性能
+    .balign 8
+.Lgdt_null:
+.Lgdt_ptr:
+    .word .Lgdt_end - .Lgdt_null -1
+    .long .Lgdt_null
+    .word 0
+.Lgdt_code64:
+    .long 0
+    .byte 0
+    .byte 0b10011010
+    .byte 0b00100000
+    .byte 0
+.Lgdt_code64_user:
+    .long 0
+    .byte 0
+    .byte 0b11111010
+    .byte 0b00100000
+    .byte 0
+.Lgdt_data64_user:
+    .long 0
+    .byte 0
+    .byte 0b11110010
+    .word 0
+.Lgdt_called_gate64:
+    .word .Lsupervisor_service
+    .word .Lgdt_code64-.Lgdt_null
+    .byte 0
+    .byte 0b11101100
+    .word 0
+    .quad 0
+.Lgdt_tss64:
+    .word 0x67
+    # base 0:15
+    .word .Ltss
+    # base 16:23
+    .byte 0
+    .byte 0b10001001
+    .byte 0
+    # base 24:31
+    .byte 0
+    # base 32:63
+    .long 0
+    .long 0
+.Lgdt_end:
+
+.Ltss:
+    .long 0
+    # 指定切换到低特权级时的栈(%rsp)
+    .quad 0x50000
+    .quad 0x0
+    .quad 0x0
+    .quad 0
+    # IST 字段，目前没有用到
+    .quad 0x0
+    .quad 0x0
+    .quad 0x0
+    .quad 0x0
+    .quad 0x0
+    .quad 0x0
+    .quad 0x0
+    .quad 0
+    # I/O Map base address，目前不知道干什么用的
+    .long 0
+
 .Lpart2:
 
-    // 硬件检测以及设置
-    # 是否支持 cpuid 指令
-    # https://wiki.osdev.org/CPUID
-    pushfl
-    pushfl
-    xorl    $0x00200000, (%esp)
-    popfl
-    pushfl
-    popl    %eax
-    xorl    (%esp), %eax
-    popfl
-    testl   $0x00200000, %eax
-    jz      .Lerror
-
-    movl    $1, %eax
-    cpuid
-    # 存在 msr 寄存器
-    testb   $(1<<5), %dl
-    jz      .Lerror
-    # 存在 Local APIC
-    testw   $(1<<9), %dx
-    jz      .Lerror
-    # 支持 x2APIC
-    testl   $(1<<21), %ecx
-    jz      .Lerror
-    # 支持 TSC_Deadline
-    testl   $(1<<24), %ecx
-    jz      .Lerror
-    movl    $0x1b, %ecx
-    # APIC is enabled
-    rdmsr
-    testw   $(1<<11), %ax
-    jz      .Lerror
-    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
-    movl    $6, %eax
-    cpuid
-    testb   $(1<<2), %al
-    jz      .Lerror
-
-    # clear CR4.CET CR4.PKS CR4.PKE
-    movl    %cr4, %eax
-    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
-    jz      1f
-    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
-    movl    %eax, %cr4
-1:
-
-    # clear CR0.WP
-    movl    %cr0, %eax
-    testl   $(1<<16), %eax
-    jz      1f
-    andl    $( ~(1<<16) ), %eax
-    movl    %eax, %cr0
-1:
-
-    call    .Lclear
-
-
-
-
-
-    //进入保护模式的初始化
-    # 打开A20以及lgdt
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
-    call    .Lclear
 
 
     // 准备64位长模式的页表

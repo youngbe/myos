@@ -36,8 +36,34 @@ _start:
     sti
     call    .Lclear
 
-    // CPU检测
-    # 是否支持 cpuid 指令
+    // 打开A20
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+    //检查一个扇区是不是512字节
+    # qemu不支持此BIOS扩展
+    subw    $0x1e, %sp
+    movw    %ss, %ax
+    movw    %ax, %ds
+    movw    %sp, %si
+    movb    $0x48, %ah
+    movb    $0x80, %dl
+    int     $0x13
+    jc      .Lerror
+    testb   %ah, %ah
+    jne     .Lerror
+    cmpw    $0x200, %ss:24(%esp)
+    jne     .Lerror
+    addw    $0x1e, %sp
+    call    .Lclear
+
+    // 硬件兼容性检测及设置
+
+    # 1. 检测是否支持 cpuid 指令
     # https://wiki.osdev.org/CPUID
     pushfl
     pushfl
@@ -52,30 +78,31 @@ _start:
 
     movl    $1, %eax
     cpuid
-    # 存在 msr 寄存器
+    # 2. 检测是否存在 msr 寄存器
     testb   $(1<<5), %dl
     jz      .Lerror
-    # 存在 Local APIC
+    # 3. 存在 Local APIC
     testw   $(1<<9), %dx
     jz      .Lerror
-    # 支持 x2APIC
+    # 4. 支持 x2APIC
     testl   $(1<<21), %ecx
     jz      .Lerror
-    # 支持 TSC_Deadline
+    # 5. 支持 TSC_Deadline
     testl   $(1<<24), %ecx
     jz      .Lerror
     movl    $0x1b, %ecx
-    # APIC is enabled
+    # 6. APIC is enabled
     rdmsr
     testw   $(1<<11), %ax
     jz      .Lerror
+    # 7. 选自英特尔3a卷
     # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
     movl    $6, %eax
     cpuid
     testb   $(1<<2), %al
     jz      .Lerror
 
-    # clear CR4.CET CR4.PKS CR4.PKE
+    # 8. clear CR4.CET CR4.PKS CR4.PKE
     movl    %cr4, %eax
     testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
     jz      1f
@@ -93,22 +120,6 @@ _start:
 
     call    .Lclear
 
-    //检查一个扇区是不是512字节
-    # qemu不支持此功能
-    subw    $0x1e, %sp
-    movw    %ss, %ax
-    movw    %ax, %ds
-    movw    %sp, %si
-    movb    $0x48, %ah
-    movb    $0x80, %dl
-    int     $0x13
-    jc      .Lerror
-    testb   %ah, %ah
-    jne     .Lerror
-    cmpw    $0x200, %ss:24(%esp)
-    jne     .Lerror
-    addw    $0x1e, %sp
-    call    .Lclear
 
     //读取Bootloader剩余部分
     # 前 65 个扇区为bootloader
@@ -305,21 +316,7 @@ _start:
 
 
 .Lpart2:
-
-
-    //进入保护模式的初始化
-    # 打开A20以及lgdt
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
-    call    .Lclear
-
     lgdtl   .Lgdt_ptr
-
-
-
 
 
     // 侦测内存分布
