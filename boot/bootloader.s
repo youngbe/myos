@@ -24,58 +24,6 @@ _start:
 .Ldata_sector_num:
     .long 1
 
-.Lkernel_start_address:
-    .quad 0
-
-.Ldata_memory_map_size:
-    .long 0
-
-    // gdt
-    # 在 NULL Descripter 上存放gdt，而不是全0
-    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
-    # 根据英特尔白皮书3a卷 3.5.1 ，应该对齐8字节以获得更好的性能
-    .balign 8
-.Lgdt_null:
-.Lgdt_ptr:
-    .word .Lgdt_end - .Lgdt_null -1
-    .long .Lgdt_null
-    .word 0
-.Lgdt_code64:
-    .long 0
-    .byte 0
-    .byte 0b10011010
-    .byte 0b00100000
-    .byte 0
-.Lgdt64_end:
-.Lgdt_code32:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_code16:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .word 0
-.Lgdt_data32:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_data16:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .word 0
-.Lgdt_end:
-
-
 .Lreal_start:
     xorl    %eax, %eax
     cli
@@ -86,6 +34,63 @@ _start:
     movw    %ax, %fs
     movw    %ax, %gs
     sti
+    call    .Lclear
+
+    // CPU检测
+    # 是否支持 cpuid 指令
+    # https://wiki.osdev.org/CPUID
+    pushfl
+    pushfl
+    xorl    $0x00200000, (%esp)
+    popfl
+    pushfl
+    popl    %eax
+    xorl    (%esp), %eax
+    popfl
+    testl   $0x00200000, %eax
+    jz      .Lerror
+
+    movl    $1, %eax
+    cpuid
+    # 存在 msr 寄存器
+    testb   $(1<<5), %dl
+    jz      .Lerror
+    # 存在 Local APIC
+    testw   $(1<<9), %dx
+    jz      .Lerror
+    # 支持 x2APIC
+    testl   $(1<<21), %ecx
+    jz      .Lerror
+    # 支持 TSC_Deadline
+    testl   $(1<<24), %ecx
+    jz      .Lerror
+    movl    $0x1b, %ecx
+    # APIC is enabled
+    rdmsr
+    testw   $(1<<11), %ax
+    jz      .Lerror
+    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
+    movl    $6, %eax
+    cpuid
+    testb   $(1<<2), %al
+    jz      .Lerror
+
+    # clear CR4.CET CR4.PKS CR4.PKE
+    movl    %cr4, %eax
+    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
+    jz      1f
+    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
+    movl    %eax, %cr4
+1:
+
+    # clear CR0.WP
+    movl    %cr0, %eax
+    testl   $(1<<16), %eax
+    jz      1f
+    andl    $( ~(1<<16) ), %eax
+    movl    %eax, %cr0
+1:
+
     call    .Lclear
 
     //检查一个扇区是不是512字节
@@ -170,18 +175,74 @@ _start:
     .ascii "error!"
 2:
 .Lerror:
-    movl    $0x1300, %eax
-    movl    $0b00001111, %ebx
-    movl    $(2b-1b), %ecx
-    xorl    %edx, %edx
-    movw    %dx, %es
-    movl    $1b, %ebp
+    # clear screen
+    call    .Lclear
+    movb    $0x07, %ah
+    movb    $0b00001111, %bh
+    movw    $0x184f, %dx
+    int     $0x10
+    call    .Lclear
+    movb    $0x13, %ah
+    movb    $0b00001111, %bl
+    movw    $(2b-1b), %cx
+    movw    $1b, %bp
     int     $0x10
     jmp     .
 
     .fill 510-( . - _start ), 1, 0
     .byte 0x55
     .byte 0xaa
+
+.Lkernel_start_address:
+    .quad 0
+
+.Ldata_memory_map_size:
+    .long 0
+
+    // gdt
+    # 在 NULL Descripter 上存放gdt，而不是全0
+    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
+    # 根据英特尔白皮书3a卷 3.5.1 ，应该对齐8字节以获得更好的性能
+    .balign 8
+.Lgdt_null:
+.Lgdt_ptr:
+    .word .Lgdt_end - .Lgdt_null -1
+    .long .Lgdt_null
+    .word 0
+.Lgdt_code64:
+    .long 0
+    .byte 0
+    .byte 0b10011010
+    .byte 0b00100000
+    .byte 0
+.Lgdt64_end:
+.Lgdt_code32:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_code16:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .word 0
+.Lgdt_data32:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_data16:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .word 0
+.Lgdt_end:
 
 # 从 0x30000拷贝 %eax 个字节的数据到 *.Lkernel_load_next_address
 .Lcopy_to_high:
@@ -244,46 +305,6 @@ _start:
 
 
 .Lpart2:
-    // CPU检测
-    # 是否支持 cpuid 指令
-    # https://wiki.osdev.org/CPUID
-    pushfl
-    pushfl
-    xorl    $0x00200000, (%esp)
-    popfl
-    pushfl
-    popl    %eax
-    xorl    (%esp), %eax
-    popfl
-    testl   $0x00200000, %eax
-    jz      .Lerror
-
-    movl    $1, %eax
-    cpuid
-    # 存在 msr 寄存器
-    testb   $(1<<5), %dl
-    jz      .Lerror
-    # 存在 Local APIC
-    testw   $(1<<9), %dx
-    jz      .Lerror
-    # 支持 x2APIC
-    testl   $(1<<21), %ecx
-    jz      .Lerror
-    # 支持 TSC_Deadline
-    testl   $(1<<24), %ecx
-    jz      .Lerror
-    movl    $0x1b, %ecx
-    # APIC is enabled
-    rdmsr
-    testw   $(1<<11), %ax
-    jz      .Lerror
-    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
-    movl    $6, %eax
-    cpuid
-    testb   $(1<<2), %al
-    jz      .Lerror
-
-    call    .Lclear
 
 
     //进入保护模式的初始化
