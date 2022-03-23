@@ -18,13 +18,8 @@
 _start:
     # 重置 %cs 和 %eip
     # 抄自grub：https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S#l227
-    ljmpl $0, $.Lreal_start
-
-    # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
-.Ldata_sector_num:
-    .long 1
-
-.Lreal_start:
+    ljmpl $0, $1f
+1:
     xorl    %eax, %eax
     cli
     movw    %ax, %ss
@@ -131,7 +126,16 @@ _start:
 
     jmp     .Lpart2
 
-    //参数：读取扇区数量%ax，保存位置segment:offset : %edx
+
+
+
+
+    // read_hdd：读取磁盘
+    // 参数：读取扇区数量%ax，保存位置segment:offset : %edx
+
+    # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
+1:
+    .long 1
 .Lread_hdd:
     andl    $0xffff, %eax
 
@@ -147,12 +151,12 @@ _start:
     movw    $0x10, (%esp)
     movw    %ax, 2(%esp)
     movl    %edx, 4(%esp)
-    movl    .Ldata_sector_num, %edx
+    movl    1b, %edx
     movl    %edx, 8(%esp)
     # 这里 %ecx 应该为0
     movl    %ecx, 12(%esp)
 
-    addl    %eax, .Ldata_sector_num
+    addl    %eax, 1b
 
     movw    %ss, %dx
     movw    %dx, %ds
