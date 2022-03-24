@@ -56,11 +56,11 @@ _start:
     # https://wiki.osdev.org/CPUID
     pushfl
     pushfl
-    xorl    $0x00200000, (%esp)
+    xorl    $0x00200000, %ss:(%esp)
     popfl
     pushfl
     popl    %eax
-    xorl    (%esp), %eax
+    xorl    %ss:(%esp), %eax
     popfl
     testl   $0x00200000, %eax
     jz      .Lerror
@@ -111,9 +111,7 @@ _start:
 
 
     //读取Bootloader剩余部分
-    # 前 65 个扇区为bootloader
-    # 第 65 个扇区(从0开始数)为kernel_size
-    # 第 66 个扇区开始为kernel
+    # 前 66 个扇区为bootloader
     movw    $65, %ax
     movl    $0x7e00000, %edx
     call    .Lread_hdd
@@ -142,13 +140,13 @@ _start:
     movw    %cx, %ds
 
     subw    $0x10, %sp
-    movw    $0x10, (%esp)
-    movw    %ax, 2(%esp)
-    movl    %edx, 4(%esp)
+    movw    $0x10, %ss:(%esp)
+    movw    %ax, %ss:2(%esp)
+    movl    %edx, %ss:4(%esp)
     movl    1b, %edx
-    movl    %edx, 8(%esp)
+    movl    %edx, %ss:8(%esp)
     # 这里 %ecx 应该为0
-    movl    %ecx, 12(%esp)
+    movl    %ecx, %ss:12(%esp)
 
     addl    %eax, 1b
 

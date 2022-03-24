@@ -3,12 +3,6 @@
     .section .bss.startup
     .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
 .Lstack_end_and_heap_start:
-
-.Lkernel_load_next_address:
-    .long 0
-.Lkernel_start_esp:
-    .long 0
-
 .Lheap_end:
 
     # 此处地址0x7c00，以下部分将会被加载到内存执行
@@ -117,9 +111,7 @@ _start:
 
 
     //读取Bootloader剩余部分
-    # 前 65 个扇区为bootloader
-    # 第 65 个扇区(从0开始数)为kernel_size
-    # 第 66 个扇区开始为kernel
+    # 前 66 个扇区为bootloader
     movw    $65, %ax
     movl    $0x7e00000, %edx
     call    .Lread_hdd
@@ -208,11 +200,6 @@ _start:
     .byte 0x55
     .byte 0xaa
 
-.Lkernel_start_address:
-    .quad 0
-
-.Ldata_memory_map_size:
-    .long 0
 
     // gdt
     # 在 NULL Descripter 上存放gdt，而不是全0
@@ -230,288 +217,65 @@ _start:
     .byte 0b10011010
     .byte 0b00100000
     .byte 0
-.Lgdt64_end:
-.Lgdt_code32:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_code16:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .word 0
-.Lgdt_data32:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_data16:
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .word 0
 .Lgdt_end:
 
-# 从 0x30000拷贝 %eax 个字节的数据到 *.Lkernel_load_next_address
-.Lcopy_to_high:
-    pushl   %eax
-    call    .Lclear
-    cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
+    # 根据英特尔白皮书3a卷 ，应该对齐8字节以获得更好的性能
+    .balign 8
+.Lidt_start:
+    .rept 32
+    .word .Lisr_empty
+    .word .Lgdt_code64-.Lgdt_null
+    .byte 0
+    .byte 0b11101110
+    .word 0
+    .quad 0
+    .endr
+
+    .word .Lisr32
+    .word .Lgdt_code64-.Lgdt_null
+    .byte 0
+    .byte 0b11101110
+    .word 0
+    .quad 0
+
+    .rept 223
+    .word .Lisr_empty
+    .word .Lgdt_code64-.Lgdt_null
+    .byte 0
+    .byte 0b11101110
+    .word 0
+    .quad 0
+    .endr
+.Lidt_end:
+
+.Lidt_ptr:
+    .word .Lidt_end - .Lidt_start -1
+    .long .Lidt_start
+
+
+    .code64
 1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-
-    popl    %ecx
-    movl    .Lkernel_load_next_address, %edi
-    addl    %ecx, .Lkernel_load_next_address
-    movb    %cl, %dl
-    addb    $0b11, %dl
-    shrl    $2, %ecx
-    movl    $0x30000, %esi
-    rep;    movsl
-    movb    %dl, %cl
-    rep;    movsb
-
-    // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
+    .byte '!'
+.Lisr32:
+    pushq   %rax
+    pushq   %rcx
+    pushq   %rdx
+    movb    1b, %al
+    movb    %al, 0xb8004
+    incb    1b
+    xorq    %rdx, %rdx
+    xorq    %rax, %rax
+    movl    $0x80b, %ecx
+    wrmsr
+    popq    %rdx
+    popq    %rcx
+    popq    %rax
+.Lisr_empty:
+    iretq
     .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
-    xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
-    sti
-    jmp     .Lclear
-
-
-
-
-
-
 
 
 .Lpart2:
-    lgdtl   .Lgdt_ptr
-
-
-    // 侦测内存分布
-    // save to 0x20000
-    # https://wiki.osdev.org/Detecting_Memory_(x86)
-    // 第一次调用：%eax=0xe820, %ebx=0, %ecx=24, %edx=smap, %es:%edi = 地址
-    // 返回 cflag位，%eax=smap, %ebx保留，%cl=位数
-    // 错误判断： cflag位，%eax=smap, %ebx!=0
-    // 之后的调用：%eax=0xe820，%ebx保留，%ecx=24，%edx=smap，%es:%edi = 地址
-    // 返回：cflag位，%ebx保留，%cl=位数
-    // 结束判断：cflag位，%ebx
-    movw    $0x2000, %ax
-    movw    %ax, %es
-    pushw   %es
-    pushl   %edi
-    movw    $0xe820, %ax
-    movb    $24, %cl
-    movl    $0x534d4150, %edx
-    int     $0x15
-    jc      .Lerror
-    cmpl    $0x534d4150, %eax
-    jne     .Lerror
-    testl   %ebx, %ebx
-    jz      .Lerror
-    // 每次获取完一个条目后的处理
-5:
-    pushl   %ebx
-    pushw   %cx
-    call    .Lclear
-    popw    %cx
-    popl    %ebx
-    popl    %edi
-    popw    %es
-    // 判断是不是有效条目
-    # if %cl != 24
-    cmpb    $24, %cl
-    je      1f
-        # if %cl != 20
-        # goto error
-        cmpb    $20, %cl
-        jne     .Lerror
-    jmp     2f
-    # else
-1:
-        # if clear位 为 0
-        # 无效条目
-        testb   $1, %es:20(%di)
-        jz      3f
-2:
-    cmpl    $0, %es:8(%di)
-    jne     4f
-    cmpl    $0, %es:12(%di)
-    je      3f
-    # 有效条目
-4:
-    cmpl    $0, %es:16(%di)
-    je      .Lerror
-    cmpl    $5, %es:16(%di)
-    ja      .Lerror
-    movb    %cl, %es:24(%di)
-    addw    $25, %di
-    incl    .Ldata_memory_map_size
-    # 无效条目
-3:
-    // 读取下一个条目
-    # 没有下一个条目了
-    testl   %ebx, %ebx
-    jz      6f
-    # 存放条目空间不足
-    cmpw    $(25*2621), %di
-    je      .Lerror
-    pushw   %es
-    pushl   %edi
-    movl    $0xe820, %eax
-    movl    $24, %ecx
-    movl    $0x534d4150, %edx
-    int     $0x15
-    jnc     5b
-    call    .Lclear
-    popl    %edi
-    popw    %es
-6:
-    # 检测至少有一块常规内存，读取才能算成功
-    movl    .Ldata_memory_map_size, %ecx
-    testl   %ecx, %ecx
-    jz      .Lerror
-7:
-    subw    $25, %di
-    cmpl    $1, %es:16(%di)
-    je      8f
-    loopl   7b
-    jmp     .Lerror
-8:
-    call    .Lclear
-    // dectect memory complete
-
-
-
-
-
-
-
-
-
-    // handle memory map
-    # 1. goto protected mode
-    # 2. run handle_memory_map, this will find a place to load kernel
-    # 3. back to real mode
-    cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
-1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-
-    pushl   $0x10000
-    pushl   0xfe00
-    pushl   .Ldata_memory_map_size
-    pushl   $0x20000
-    call    handle_memory_map
-    addl    $16, %esp
-    movl    %eax, .Lkernel_start_address
-    movl    %eax, .Lkernel_load_next_address
-    movl    %edx, .Lkernel_start_esp
-
-    // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
-    .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
-    xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
-    sti
-    call    .Lclear
-    cmpl    $0, .Lkernel_start_address
-    je      .Lerror
-
-
-
-
-
-
-
-
-    // 加载内核
-    movl    0xfe00, %eax
-    # 现在%eax存放了需要读取的扇区数
-
-    # while %eax > 0x7f
-2:
-    cmpl    $0x7f, %eax
-    jbe     1f
-    pushl   %eax
-    movw    $0x7f, %ax
-    movl    $0x30000000, %edx
-    call    .Lread_hdd
-    movl    $0xfe00, %eax
-    call    .Lcopy_to_high
-    popl    %eax
-    subl    $0x7f, %eax
-    jmp     2b
-
-1:
-    pushw   %ax
-    movl    $0x30000000, %edx
-    call    .Lread_hdd
-    popw    %ax
-    shll    $9, %eax
-    call    .Lcopy_to_high
-
 
 
 
@@ -595,13 +359,80 @@ _start:
     outb    %al, $0xa1
     outb    %al, $0x21
 
+    // enable x2APIC
+    movl    $0x1b, %ecx
+    rdmsr
+    testw   $(1<<10), %ax
+    jnz     1f
+    orw     $(1<<10), %ax
+    wrmsr
+1:
+    
+    xorl    %edx, %edx
+   /* 
+    // 软件禁用x2APIC
+    movl    $0x80F, %ecx
+    movl    $0x32, %eax
+    wrmsr
 
+    MFENCE;LFENCE
 
+    # count
+    movl    $0x838, %ecx
+    movl    $0xffffffff, %eax
+    wrmsr
+    
+    # divide
+    movl    $0x83e, %ecx
+    movl    $128, %eax
+    wrmsr
+
+    # timer
+    movl    $0x832, %ecx
+    rdmsr
+    andl    $0xFFF8FF00, %eax
+    orl     $( (0b01<<17)  + (1<<16) + 0x30 ), %eax
+    wrmsr
+
+    MFENCE;LFENCE
+    */
+    # Spurious Interrupt Vector Register
+    movl    $0x80F, %ecx
+    rdmsr
+    andl    $( ~( 0x3ff+(1<<12) ) ), %eax
+    orl     $( (1<<8) + 0xff), %eax
+    wrmsr
+
+    # LVT LINIT0 Register
+    movl    $0x835, %ecx
+    rdmsr
+
+    # LVT LINIT1 Register
+    movl    $0x836, %ecx
+    rdmsr
+    
+    # Divide Configuration Register
+    movl    $0x83e, %ecx
+    rdmsr
+    andl    $(~0xf), %eax
+    orl     $( 0b1010 ), %eax
+    wrmsr
+
+    # LVT Timer register
+    movl    $0x832, %ecx
+    rdmsr
+    andl    $( ~( 0xff+(7<<16) ) ), %eax
+    orl     $( (0b01<<17) + 0x20 ), %eax
+    wrmsr
+
+    # count
+    movl    $491520, %eax
+    movl    $0x838, %ecx
+    wrmsr
 
     // 进入64位长模式
-    # 重新加载gdt，删去不必要的段(16位和32位)
-    movw    $(.Lgdt64_end-.Lgdt_null-1), .Lgdt_ptr
     lgdtl   .Lgdt_ptr
+    lidtl   .Lidt_ptr
 
     # 设置 %cr3
     movl    $0x20000, %eax
@@ -634,6 +465,8 @@ _start:
     movw    %ax, %ss
     movw    %ax, %ds
     movw    %ax, %es
-    call    init_x2apic
-    movl    .Lkernel_start_esp, %esp
-    jmp     *.Lkernel_start_address
+
+    sti
+1:
+    hlt
+    jmp     1b
