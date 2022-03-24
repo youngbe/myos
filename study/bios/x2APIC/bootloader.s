@@ -130,15 +130,12 @@ _start:
     .long 1
 .Lread_hdd:
     andl    $0xffff, %eax
-
     # 部分bios(比如vmware)的拓展读取磁盘服务最大一次只能读127个扇区
     # https://en.wikipedia.org/wiki/INT_13H#INT_13h_AH=42h:_Extended_Read_Sectors_From_Drive
     cmpw    $0x7f, %ax
     ja      .Lerror
-
     xorl    %ecx, %ecx
     movw    %cx, %ds
-
     subw    $0x10, %sp
     movw    $0x10, %ss:(%esp)
     movw    %ax, %ss:2(%esp)
@@ -147,12 +144,11 @@ _start:
     movl    %edx, %ss:8(%esp)
     # 这里 %ecx 应该为0
     movl    %ecx, %ss:12(%esp)
-
     addl    %eax, 1b
-
+    call    .Lclear
     movw    %ss, %dx
     movw    %dx, %ds
-    movl    %esp, %esi
+    movw    %sp, %si
     movb    $0x80, %dl
     movb    $0x42, %ah
     int     $0x13

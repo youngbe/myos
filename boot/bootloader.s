@@ -1,3 +1,41 @@
+    .macro enter_protected_mode
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
+    .code32
+1:
+    movl    $(.Lgdt_data32-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    .endm
+    .macro exit_protected_mode
+    movl    $(.Lgdt_data16-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
+    .code16
+1:
+    movl    %cr0, %eax
+    andl    $0xfffffffe, %eax
+    movl    %eax, %cr0
+    ljmpl   $0, $1f
+1:
+    xorl    %eax, %eax
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
+    .endm
+
+
 # 地址 0-0x7c00
 # 此段不会被加载到内存执行，只是通过标签获取地址
     .section .bss.startup
@@ -138,15 +176,12 @@ _start:
     .long 1
 .Lread_hdd:
     andl    $0xffff, %eax
-
     # 部分bios(比如vmware)的拓展读取磁盘服务最大一次只能读127个扇区
     # https://en.wikipedia.org/wiki/INT_13H#INT_13h_AH=42h:_Extended_Read_Sectors_From_Drive
     cmpw    $0x7f, %ax
     ja      .Lerror
-
     xorl    %ecx, %ecx
     movw    %cx, %ds
-
     subw    $0x10, %sp
     movw    $0x10, %ss:(%esp)
     movw    %ax, %ss:2(%esp)
@@ -155,12 +190,11 @@ _start:
     movl    %edx, %ss:8(%esp)
     # 这里 %ecx 应该为0
     movl    %ecx, %ss:12(%esp)
-
     addl    %eax, 1b
-
+    call    .Lclear
     movw    %ss, %dx
     movw    %dx, %ds
-    movl    %esp, %esi
+    movw    %sp, %si
     movb    $0x80, %dl
     movb    $0x42, %ah
     int     $0x13
@@ -264,18 +298,7 @@ _start:
     pushl   %eax
     call    .Lclear
     cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
-1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
+    enter_protected_mode
 
     popl    %ecx
     movl    .Lkernel_load_next_address, %edi
@@ -289,26 +312,7 @@ _start:
     rep;    movsb
 
     // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
-    .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
-    xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
+    exit_protected_mode
     sti
     jmp     .Lclear
 
@@ -430,18 +434,7 @@ _start:
     # 2. run handle_memory_map, this will find a place to load kernel
     # 3. back to real mode
     cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
-1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
+    enter_protected_mode
 
     pushl   $0x10000
     pushl   0xfe00
@@ -454,26 +447,7 @@ _start:
     movl    %edx, .Lkernel_start_esp
 
     // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
-    .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
-    xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
+    exit_protected_mode
     sti
     call    .Lclear
     cmpl    $0, .Lkernel_start_address
