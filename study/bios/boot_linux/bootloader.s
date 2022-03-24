@@ -88,65 +88,6 @@ _start:
     jne     .Lerror
     addw    $0x1e, %sp
     call    .Lclear
-
-    // 硬件兼容性检测及设置
-
-    # 1. 检测是否支持 cpuid 指令
-    # https://wiki.osdev.org/CPUID
-    pushfl
-    pushfl
-    xorl    $0x00200000, %ss:(%esp)
-    popfl
-    pushfl
-    popl    %eax
-    xorl    %ss:(%esp), %eax
-    popfl
-    testl   $0x00200000, %eax
-    jz      .Lerror
-
-    movl    $1, %eax
-    cpuid
-    # 2. 检测是否存在 msr 寄存器
-    testb   $(1<<5), %dl
-    jz      .Lerror
-    # 3. 存在 Local APIC
-    testw   $(1<<9), %dx
-    jz      .Lerror
-    # 4. 支持 x2APIC
-    testl   $(1<<21), %ecx
-    jz      .Lerror
-    # 5. 支持 TSC_Deadline
-    testl   $(1<<24), %ecx
-    jz      .Lerror
-    movl    $0x1b, %ecx
-    # 6. APIC is enabled
-    rdmsr
-    testw   $(1<<11), %ax
-    jz      .Lerror
-    # 7. 选自英特尔3a卷
-    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
-    movl    $6, %eax
-    cpuid
-    testb   $(1<<2), %al
-    jz      .Lerror
-
-    # 8. clear CR4.CET CR4.PKS CR4.PKE
-    movl    %cr4, %eax
-    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
-    jz      1f
-    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
-    movl    %eax, %cr4
-1:
-
-    # clear CR0.WP
-    movl    %cr0, %eax
-    testl   $(1<<16), %eax
-    jz      1f
-    andl    $( ~(1<<16) ), %eax
-    movl    %eax, %cr0
-1:
-
-    call    .Lclear
     */
 
 
@@ -315,6 +256,9 @@ _start:
 
 
 .Lpart2:
+
+    lgdtl   .Lgdt_ptr
+
     //读内核第一个扇区，放到0x10000
     movw    $1, %ax
     movl    $0x10000000, %edx
@@ -359,15 +303,10 @@ _start:
     movb    $0x01, 0x227
     movl    $0x20000, 0x228
 
-    call    .Lclear
-    lgdtl   .Lgdt_ptr
 
     //加载内核32位代码
-    movw    $0x1000, %ax
-    movw    %ax, %ds
     movl    0x1f4, %eax
-    movl    %eax, %ebx
-    andl    $0x1f, %ebx
+    testl   $0x1f, %eax
     jz      1f
     addl    $0x20, %eax
 1:
@@ -398,8 +337,8 @@ _start:
 
     //进入内核
     call    .Lclear
-    cli
     movw    $0x1000, %ax
+    cli
     movw    %ax, %ds
     movw    %ax, %es
     movw    %ax, %fs
