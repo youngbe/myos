@@ -1,3 +1,41 @@
+    .macro enter_protected_mode
+    movl    %cr0, %eax
+    orl     $1, %eax
+    movl    %eax, %cr0
+    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
+    .code32
+1:
+    movl    $(.Lgdt_data32-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    .endm
+    .macro exit_protected_mode
+    movl    $(.Lgdt_data16-.Lgdt_null), %eax
+    movw    %ax, %ds
+    movw    %ax, %es
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
+    .code16
+1:
+    movl    %cr0, %eax
+    andl    $0xfffffffe, %eax
+    movl    %eax, %cr0
+    ljmpl   $0, $1f
+1:
+    xorl    %eax, %eax
+    movw    %ax, %fs
+    movw    %ax, %gs
+    movw    %ax, %ss
+    movw    %ax, %ds
+    movw    %ax, %es
+    .endm
+
+
 # 地址 0-0x7c00
 # 此段不会被加载到内存执行，只是通过标签获取地址
     .section .bss.startup
@@ -12,66 +50,8 @@
 _start:
     # 重置 %cs 和 %eip
     # 抄自grub：https://git.savannah.gnu.org/gitweb/?p=grub.git;a=blob;f=grub-core/boot/i386/pc/boot.S#l227
-    ljmpl $0, $.Lreal_start
-
-    # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
-.Ldata_sector_num:
-    .long 1
-
-    # 内核32位代码接下来要加载位置
-.Ldata_protected_mode_code:
-    .long 0x100000
-
-    // 写入内核头的 cmd line
-.Ldata_cmd_line:
-    .ascii "root=/dev/sdb2\0"
-.Ldata_cmd_line_end:
-
-    // gdt
-.Lgdt_null:
-    .quad 0
-.Lgdt_code32:
-    // 32位代码段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_code16:
-    // 16位代码段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10011011
-    .word 0
-.Lgdt_data32:
-    // 32位数据段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .byte 0b11001111
-    .byte 0
-.Lgdt_data16:
-    // 16位数据段
-    .word 0xffff
-    .word 0
-    .byte 0
-    .byte 0b10010011
-    .word 0
-
-    # 抄的，但并不知道为什么需要对齐
-    # https://wiki.osdev.org/Entering_Long_Mode_Directly#Switching_to_Long_Mode
-    .p2align 2
-    .word 0
-
-.Lgdt_ptr:
-    .word .Lgdt_ptr-.Lgdt_null-1
-    .long .Lgdt_null
-
-
-.Lreal_start:
+    ljmpl $0, $1f
+1:
     xorl    %eax, %eax
     cli
     movw    %ax, %ss
@@ -83,82 +63,132 @@ _start:
     sti
     call    .Lclear
 
+    // 打开A20
+    movw    $0x2401, %ax
+    int     $0x15
+    jc      .Lerror
+    testb   %ah, %ah
+    jnz     .Lerror
+    call    .Lclear
+
+    /*
     //检查一个扇区是不是512字节
-    # qemu不支持int $0x13, %ah=$0x48
-    #subw    $0x1e, %sp
-    ##movw    %ss, %ax
-    ##movw    %ax, %ds
-    #movw    %sp, %si
-    #movb    $0x48, %ah
-    #movb    $0x80, %dl
-    #int     $0x13
-    #jc      .Lerror
-    #testb   %ah, %ah
-    #jne     .Lerror
-    #cmpw    $0x200, 24(%esp)
-    #jne     .Lerror
-    #addw    $0x1e, %sp
-    #call    .Lclear
+    # qemu不支持此BIOS扩展
+    subw    $0x1e, %sp
+    movw    %ss, %ax
+    movw    %ax, %ds
+    movw    %sp, %si
+    movb    $0x48, %ah
+    movb    $0x80, %dl
+    int     $0x13
+    jc      .Lerror
+    testb   %ah, %ah
+    jne     .Lerror
+    cmpw    $0x200, %ss:24(%esp)
+    jne     .Lerror
+    addw    $0x1e, %sp
+    call    .Lclear
+
+    // 硬件兼容性检测及设置
+
+    # 1. 检测是否支持 cpuid 指令
+    # https://wiki.osdev.org/CPUID
+    pushfl
+    pushfl
+    xorl    $0x00200000, %ss:(%esp)
+    popfl
+    pushfl
+    popl    %eax
+    xorl    %ss:(%esp), %eax
+    popfl
+    testl   $0x00200000, %eax
+    jz      .Lerror
+
+    movl    $1, %eax
+    cpuid
+    # 2. 检测是否存在 msr 寄存器
+    testb   $(1<<5), %dl
+    jz      .Lerror
+    # 3. 存在 Local APIC
+    testw   $(1<<9), %dx
+    jz      .Lerror
+    # 4. 支持 x2APIC
+    testl   $(1<<21), %ecx
+    jz      .Lerror
+    # 5. 支持 TSC_Deadline
+    testl   $(1<<24), %ecx
+    jz      .Lerror
+    movl    $0x1b, %ecx
+    # 6. APIC is enabled
+    rdmsr
+    testw   $(1<<11), %ax
+    jz      .Lerror
+    # 7. 选自英特尔3a卷
+    # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
+    movl    $6, %eax
+    cpuid
+    testb   $(1<<2), %al
+    jz      .Lerror
+
+    # 8. clear CR4.CET CR4.PKS CR4.PKE
+    movl    %cr4, %eax
+    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
+    jz      1f
+    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
+    movl    %eax, %cr4
+1:
+
+    # clear CR0.WP
+    movl    %cr0, %eax
+    testl   $(1<<16), %eax
+    jz      1f
+    andl    $( ~(1<<16) ), %eax
+    movl    %eax, %cr0
+1:
+
+    call    .Lclear
+    */
+
 
     //读取Bootloader剩余部分
-    # 因为我的Bootloader有点大，512字节装不下，我写了两个扇区
-    movw    $1, %ax
+    # 前 66 个扇区为bootloader
+    movw    $65, %ax
     movl    $0x7e00000, %edx
-    call    .Lread_hdd
-
-    //读内核第一个扇区，放到0x10000
-    movw    $1, %ax
-    movl    $0x10000000, %edx
-    call    .Lread_hdd
-
-    // 读取kernel setup sector
-    movw    $0x1000, %bx
-    movw    %bx, %ds
-    movb    0x1f1, %al
-
-    # 检查是否太多扇区，不够空间存放
-    # 根据内核文档，Kernel boot sector + Kernel setup 的大小不应该超过0x8000
-    # 因此setup_sector的大小不应该超过0x3f
-    cmpb    $0x3f, %al
-    ja      .Lerror
-
-    # 根据内核文档，%al==0则%al==4
-    testb   %al, %al
-    jne     1f
-    movb    $4, %al
-1:
-    # 将内核16进制代码拷贝到0x10200
-    movl    $0x10000200, %edx
     call    .Lread_hdd
 
     jmp     .Lpart2
 
-    //参数：读取扇区数量%ax，保存位置segment:offset : %edx
+
+
+
+
+    // read_hdd：读取磁盘
+    // 参数：读取扇区数量%ax，保存位置segment:offset : %edx
+
+    # 下一个要读取的逻辑扇区号，0号已经被读取到0x7c00
+1:
+    .long 1
 .Lread_hdd:
     andl    $0xffff, %eax
-
     # 部分bios(比如vmware)的拓展读取磁盘服务最大一次只能读127个扇区
     # https://en.wikipedia.org/wiki/INT_13H#INT_13h_AH=42h:_Extended_Read_Sectors_From_Drive
     cmpw    $0x7f, %ax
     ja      .Lerror
-
     xorl    %ecx, %ecx
     movw    %cx, %ds
-
     subw    $0x10, %sp
-    movw    $0x10, (%esp)
-    movw    %ax, 2(%esp)
-    movl    %edx, 4(%esp)
-    movl    .Ldata_sector_num, %edx
-    movl    %edx, 8(%esp)
+    movw    $0x10, %ss:(%esp)
+    movw    %ax, %ss:2(%esp)
+    movl    %edx, %ss:4(%esp)
+    movl    1b, %edx
+    movl    %edx, %ss:8(%esp)
     # 这里 %ecx 应该为0
-    movl    %ecx, 12(%esp)
-
-    addl    %eax, .Ldata_sector_num
-
+    movl    %ecx, %ss:12(%esp)
+    addl    %eax, 1b
+    call    .Lclear
     movw    %ss, %dx
     movw    %dx, %ds
-    movl    %esp, %esi
+    movw    %sp, %si
     movb    $0x80, %dl
     movb    $0x42, %ah
     int     $0x13
@@ -188,21 +218,128 @@ _start:
     .ascii "error!"
 2:
 .Lerror:
-    movl    $0x1300, %eax
-    movl    $0b00001111, %ebx
-    movl    $(2b-1b), %ecx
-    xorl    %edx, %edx
-    movw    %dx, %es
-    movl    $1b, %ebp
+    # clear screen
+    call    .Lclear
+    movb    $0x07, %ah
+    movb    $0b00001111, %bh
+    movw    $0x184f, %dx
+    int     $0x10
+    call    .Lclear
+    movb    $0x13, %ah
+    movb    $0b00001111, %bl
+    movw    $(2b-1b), %cx
+    movw    $1b, %bp
     int     $0x10
     jmp     .
-
 
     .fill 510-( . - _start ), 1, 0
     .byte 0x55
     .byte 0xaa
 
+
+    # 内核32位代码接下来要加载位置
+.Lkernel_load_next_address:
+    .long 0x100000
+
+    // 写入内核头的 cmd line
+.Ldata_cmd_line:
+    .ascii "root=/dev/sdb2\0"
+.Ldata_cmd_line_end:
+
+    // gdt
+    # 在 NULL Descripter 上存放gdt，而不是全0
+    # 根据 https://wiki.osdev.org/GDT_Tutorial#What_to_Put_In_a_GDT 在 NULL Descripter 上存放数据是合法的，Linux内核也是在 NULL Descripter 上存放gdt
+    # 根据英特尔白皮书3a卷 3.5.1 ，应该对齐8字节以获得更好的性能
+    .balign 8
+.Lgdt_null:
+.Lgdt_ptr:
+    .word .Lgdt_end - .Lgdt_null -1
+    .long .Lgdt_null
+    .word 0
+.Lgdt_code32:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_code16:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10011011
+    .word 0
+.Lgdt_data32:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .byte 0b11001111
+    .byte 0
+.Lgdt_data16:
+    .word 0xffff
+    .word 0
+    .byte 0
+    .byte 0b10010011
+    .word 0
+.Lgdt_end:
+
+# 从 0x30000拷贝 %eax 个字节的数据到 *.Lkernel_load_next_address
+.Lcopy_to_high:
+    pushl   %eax
+    call    .Lclear
+    cli
+    enter_protected_mode
+
+    popl    %ecx
+    movl    .Lkernel_load_next_address, %edi
+    addl    %ecx, .Lkernel_load_next_address
+    movb    %cl, %dl
+    addb    $0b11, %dl
+    shrl    $2, %ecx
+    movl    $0x30000, %esi
+    rep;    movsl
+    movb    %dl, %cl
+    rep;    movsb
+
+    // 返回实模式
+    exit_protected_mode
+    sti
+    jmp     .Lclear
+
+
+
+
+
+
+
+
 .Lpart2:
+    //读内核第一个扇区，放到0x10000
+    movw    $1, %ax
+    movl    $0x10000000, %edx
+    call    .Lread_hdd
+
+    // 读取kernel setup sector
+    movw    $0x1000, %bx
+    movw    %bx, %ds
+    movb    0x1f1, %al
+
+    # 检查是否太多扇区，不够空间存放
+    # 根据内核文档，Kernel boot sector + Kernel setup 的大小不应该超过0x8000
+    # 因此setup_sector的大小不应该超过0x3f
+    cmpb    $0x3f, %al
+    ja      .Lerror
+
+    # 根据内核文档，%al==0则%al==4
+    testb   %al, %al
+    jne     1f
+    movb    $4, %al
+1:
+    # 将内核16进制代码拷贝到0x10200
+    movl    $0x10000200, %edx
+    call    .Lread_hdd
+
     # 设置command line
     # 把cmd_line拷贝到0x20000
     movw    $0x2000, %cx
@@ -222,17 +359,8 @@ _start:
     movb    $0x01, 0x227
     movl    $0x20000, 0x228
 
-    //打开 A20
-    movw    $0x2401, %ax
-    int     $0x15
-    jc      .Lerror
-    testb   %ah, %ah
-    jnz     .Lerror
     call    .Lclear
-
-    cli
-    lgdt    .Lgdt_ptr
-    sti
+    lgdtl   .Lgdt_ptr
 
     //加载内核32位代码
     movw    $0x1000, %ax
@@ -277,60 +405,6 @@ _start:
     movw    %ax, %fs
     movw    %ax, %gs
     movw    %ax, %ss
-    xorl    %eax, %eax
     movl    $0xffff, %esp
-    ljmpl   $0x1020, $0x0
-
-
-# 从 0x30000拷贝 %eax 个字节的数据到 *.Ldata_protected_mode_code
-.Lcopy_to_high:
-    pushl   %eax
-    call    .Lclear
-    cli
-    movl    %cr0, %eax
-    orl     $1, %eax
-    movl    %eax, %cr0
-    ljmpl   $(.Lgdt_code32-.Lgdt_null), $1f
-    .code32
-1:
-    movl    $(.Lgdt_data32-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-
-    popl    %ecx
-    movl    .Ldata_protected_mode_code, %edi
-    addl    %ecx, .Ldata_protected_mode_code
-    movb    %cl, %dl
-    addb    $0b11, %dl
-    shrl    $2, %ecx
-    movl    $0x30000, %esi
-    rep;    movsl
-    movb    %dl, %cl
-    rep;    movsb
-
-    // 返回实模式
-    movl    $(.Lgdt_data16-.Lgdt_null), %eax
-    movw    %ax, %ds
-    movw    %ax, %es
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    ljmpl    $(.Lgdt_code16-.Lgdt_null), $1f
-    .code16
-1:
-    movl    %cr0, %eax
-    andl    $0xfffffffe, %eax
-    movl    %eax, %cr0
-    ljmpl   $0, $1f
-1:
     xorl    %eax, %eax
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
-    sti
-    jmp     .Lclear
+    ljmpl   $0x1020, $0x0

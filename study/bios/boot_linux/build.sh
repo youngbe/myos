@@ -15,7 +15,7 @@ check_dependency
 set -e
 as --64 bootloader.s -o bootloader.o
 ld --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o bootloader.bin bootloader.o
-dd conv=fdatasync if=bootloader.bin ibs=512 conv=sync of=boot.img
+dd conv=fdatasync if=bootloader.bin ibs=$((512*66)) conv=sync of=boot.img
 dd conv=fdatasync if=bzImage ibs=512 conv=sync of=boot.img oflag=append conv=notrunc
 rm -rf boot.vmdk
 qemu-img convert -f raw -O vmdk boot.img boot.vmdk
