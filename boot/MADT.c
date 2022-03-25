@@ -160,7 +160,7 @@ __typeof__(get_correspond_io_apic(0, NULL, 0)) get_correspond_io_apic(uint32_t g
     {
         if ( io_apic_ptr_list[i]->gsi_base<=gsi )
         {
-            if ( (( read_ioapic_register((volatile uint32_t *)(size_t)io_apic_ptr_list[i]->address, 1) >>16)&0xff) + io_apic_ptr_list[i]->gsi_base >=gsi )
+            if ( (( read_ioapic_register((void *)(size_t)io_apic_ptr_list[i]->address, 1) >>16)&0xff) + io_apic_ptr_list[i]->gsi_base >=gsi )
             {
                 if ( ret.status == -1 )
                 {

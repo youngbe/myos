@@ -608,6 +608,8 @@ _start:
     movw    %ax, %ss
     movw    %ax, %ds
     movw    %ax, %es
-    call    get_keyboard_ioapic_base_and_index
+    movq    $0, %rdi
+    movq    $32, %rsi
+    call    map_keyboard_interrupt_to_vector
     movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address

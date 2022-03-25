@@ -2,8 +2,9 @@
 #include "RSDP.h"
 #include "ACPI.h"
 #include "MADT.h"
+#include "ioapic.h"
 
-struct
+static inline struct
 {
     ssize_t status;
     void* keyboard_ioapic_base;
@@ -11,7 +12,31 @@ struct
 }
 get_keyboard_ioapic_base_and_index();
 
-__typeof__(get_keyboard_ioapic_base_and_index()) get_keyboard_ioapic_base_and_index()
+ssize_t map_keyboard_interrupt_to_vector(const uint8_t apic_id, const uint8_t vector)
+{
+    void* keyboard_ioapic_base;
+    uint8_t index_in_ioapic;
+    {
+        __auto_type ret=get_keyboard_ioapic_base_and_index();
+        if ( ret.status != 0 )
+        {
+            return -1;
+        }
+        keyboard_ioapic_base=ret.keyboard_ioapic_base;
+        index_in_ioapic=ret.index;
+    }
+    uint32_t keyboard_IOREDTBL_low=read_ioapic_register(keyboard_ioapic_base, (uint32_t)0x10+index_in_ioapic*2);
+    uint32_t keyboard_IOREDTBL_high=read_ioapic_register(keyboard_ioapic_base, (uint32_t)0x10+index_in_ioapic*2+1);
+    keyboard_IOREDTBL_low&= 0xFFFE5000;
+    keyboard_IOREDTBL_low|=(uint32_t)vector;
+    keyboard_IOREDTBL_high&=0x00ffffff;
+    keyboard_IOREDTBL_high|=(uint32_t)apic_id<<24;
+    write_ioapic_register(keyboard_ioapic_base, (uint32_t)0x10+index_in_ioapic*2, keyboard_IOREDTBL_low );
+    write_ioapic_register(keyboard_ioapic_base, (uint32_t)0x10+index_in_ioapic*2+1, keyboard_IOREDTBL_high );
+    return 0;
+}
+
+inline __typeof__(get_keyboard_ioapic_base_and_index()) get_keyboard_ioapic_base_and_index()
 {
     __typeof__(get_keyboard_ioapic_base_and_index()) retv;
     const struct XSDT* xsdt_ptr;
