@@ -5,7 +5,7 @@ GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" \
     "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" \
     "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
     "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
-    "-fno-stack-check" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
+    "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
 
 # 开启LTO优化的FLAGS
 LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
@@ -48,13 +48,21 @@ check_dependency
 mkdir out 2>/dev/null
 set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -mno-red-zone -m32 -fno-pie \
+    -mgeneral-regs-only -fno-pie -mno-red-zone -m32 -fno-pie \
     -S boot/handle_memory_map.c -o out/handle_memory_map.s
+$AS --64 out/handle_memory_map.s -o out/handle_memory_map.o
+
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -mno-red-zone \
-    -S boot/init_x2apic.c -o out/init_x2apic.s
-$AS --64 boot/bootloader.s out/init_x2apic.s out/handle_memory_map.s -o out/bootloader.o
-$LD --oformat binary -Ttext 0x7c00 -Tbss 0x0 -o out/bootloader.bin out/bootloader.o
+    -mgeneral-regs-only -fno-pie -mno-red-zone \
+    -c boot/RSDP.c -o out/RSDP.o
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
+    -mgeneral-regs-only -fno-pie -mno-red-zone \
+    -c boot/MADT.c -o out/MADT.o
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
+    -mgeneral-regs-only -fno-pie -mno-red-zone \
+    -c boot/init_ioapic_keyboard.c -o out/init_ioapic_keyboard.o
+$AS --64 boot/bootloader.s -o out/bootloader_main.o
+$LD -T build/bootloader.ld -o out/bootloader.bin out/bootloader_main.o out/handle_memory_map.o out/RSDP.o out/MADT.o out/init_ioapic_keyboard.o
 
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" "${KERNEL_CFLAGS[@]}" \

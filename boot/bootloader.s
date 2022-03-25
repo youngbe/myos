@@ -608,6 +608,6 @@ _start:
     movw    %ax, %ss
     movw    %ax, %ds
     movw    %ax, %es
-    call    init_x2apic
+    call    get_keyboard_ioapic_base_and_index
     movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address
