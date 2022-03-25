@@ -62,7 +62,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
     -mgeneral-regs-only -fno-pie -mno-red-zone \
     -c boot/init_ioapic_keyboard.c -o out/init_ioapic_keyboard.o
 $AS --64 boot/bootloader.s -o out/bootloader_main.o
-$LD -T build/bootloader.ld -o out/bootloader.bin out/bootloader_main.o out/handle_memory_map.o out/RSDP.o out/MADT.o out/init_ioapic_keyboard.o
+$LD -T build/bootloader.ld -no-pie -nostdlib -o out/bootloader.bin out/bootloader_main.o out/handle_memory_map.o out/RSDP.o out/MADT.o out/init_ioapic_keyboard.o
 
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" "${KERNEL_CFLAGS[@]}" \

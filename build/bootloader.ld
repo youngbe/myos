@@ -10,8 +10,7 @@ SECTIONS
         *(.text.startup)
         *(.text)
     }
-    . = ALIGN(16);
     .rodata : { *(.rodata) }
-    . = ALIGN(16);
     .data : { *(.data) }
+    . = 0x10000;
 }
