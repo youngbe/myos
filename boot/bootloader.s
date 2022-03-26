@@ -36,9 +36,9 @@
     .endm
 
 
-# 地址 0-0x7c00
-# 此段不会被加载到内存执行，只是通过标签获取地址
-    .section .bss.startup
+    # 地址 0-0x7c00
+    # 此段不会被加载到内存执行，只是通过标签获取地址
+    .section myheap
     .fill 0x7c00- ( .Lheap_end-.Lstack_end_and_heap_start ), 1, 0
 .Lstack_end_and_heap_start:
 
@@ -609,7 +609,7 @@ _start:
     movw    %ax, %ds
     movw    %ax, %es
     movq    $0, %rdi
-    movq    $32, %rsi
+    movq    $33, %rsi
     call    map_keyboard_interrupt_to_vector
     movl    .Lkernel_start_esp, %esp
     jmp     *.Lkernel_start_address
