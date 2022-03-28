@@ -8,5 +8,7 @@
 __attribute__((noreturn))
 void main()
 {
+    tclear();
+    tputs("Hello world!");
     hang_up();
 }
