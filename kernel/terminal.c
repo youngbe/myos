@@ -2,13 +2,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <terminal_io.h>
+#include <terminal.h>
 
 static void move_up();
 static size_t pos=0;
 
 
-void clear_t()
+void tclear()
 {
     size_t* temp=(size_t *)0xb8000;
     while ( true )
@@ -23,7 +23,7 @@ void clear_t()
     pos=0;
 }
 
-void putchar_t(char c)
+void tputchar(char c)
 {
     if ( c == '\0' )
     {
@@ -53,7 +53,7 @@ void putchar_t(char c)
     }
 }
 
-void puts_t(const char * str)
+void tputs(const char * str)
 {
     while ( true )
     {
