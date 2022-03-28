@@ -67,7 +67,7 @@ $LD -T build/bootloader.ld -no-pie -nostdlib -o out/bootloader.bin out/bootloade
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${PIE_BINARY_FLAGS[@]}" "${KERNEL_CFLAGS[@]}" \
     -I include/public -I include/private \
-    kernel/main.c kernel/terminal.c \
+    kernel/main.c kernel/terminal.c kernel/system_table.c kernel/temp.s \
     -o out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
 
