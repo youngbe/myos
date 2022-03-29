@@ -18,10 +18,10 @@ struct Segment_Descriptor __attribute__((aligned (32))) gdt[6]={
     {0, 0, 0, 0 ,0 , 0}
 };
 
-struct TSS64 __attribute__((aligned (32))) tss=
+static struct TSS64 __attribute__((aligned (32))) tss=
 {
     0,
-    0x7c00,
+    0,
     0,
     0,
     0,
@@ -36,10 +36,13 @@ struct TSS64 __attribute__((aligned (32))) tss=
     0,
     0
 };
+struct TSS64 *tsss=&tss;
 
 struct Interrupt_Gate_Descriptor64 __attribute__((aligned (32))) idt[256]=
 {
-    [0 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0}
+    [0 ... 31]={0, __CS, 2, 0b10001110, 0, 0 ,0},
+    [32]={0, __CS, 1, 0b10001110, 0, 0 ,0},
+    [33 ... 255]={0, __CS, 2, 0b10001110, 0, 0 ,0}
 };
 
 void reinit_gdt()
@@ -55,24 +58,26 @@ void reinit_gdt()
         uint64_t base;
     } gdtr={sizeof(gdt)-1, (uint64_t)(size_t)&gdt};
     __asm__ volatile(
-            "leaq   %[gdtr], %%rax\n\t"
             "pushq  %[ds]\n\t"
             "pushq  %%rsp\n\t"
             "pushfq\n\t"
             "pushq  %[cs]\n\t"
-            "leaq   .Lreinit_gdt%=(%%rip), %%rcx\n\t"
-            "pushq  %%rcx\n\t"
-            "lgdtq  (%%rax)\n\t"
+            "leaq   .Lreinit_gdt%=(%%rip), %%rax\n\t"
+            "pushq  %%rax\n\t"
+            "lgdtq  (%[pgdtr])\n\t"
             "iretq\n"
             ".Lreinit_gdt%=:\n\t"
-            "movq   %[ds], %%ds\n\t"
-            "movq   %[ds], %%es\n\t"
-            "movq   %[ds], %%fs\n\t"
-            "movq   %[ds], %%gs\n\t"
-            "addq   $8, %%rsp"
+            "movq   %[ds], %%rax\n\t"
+            "movq   %%rax, %%ds\n\t"
+            "movq   %%rax, %%es\n\t"
+            "movq   %%rax, %%fs\n\t"
+            "movq   %%rax, %%gs\n\t"
+            "addq   $8, %%rsp\n\t"
+            "movw   %[tss], %%ax\n\t"
+            "ltrw   %%ax"
             :
-            :[gdtr]"m"(gdtr), "m"(gdt), [ds]"r"((uint64_t)__DS), [cs]"i"(__CS)
-            :"rax", "rcx"
+            :[pgdtr]"r"(&gdtr), "m"(gdtr), "m"(gdt), [ds]"i"((uint64_t)__DS), [cs]"i"(__CS), [tss]"i"(__TSS)
+            :"rax"
             );
 }
 

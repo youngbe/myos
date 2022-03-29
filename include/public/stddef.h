@@ -12,3 +12,6 @@ typedef signed long int ssize_t;
 #define NULL 0
 #endif  /* C++ */
 #endif  /* G++ */
+
+//#define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
+#define offsetof(type, member) ((size_t)&((type*)0)->member)

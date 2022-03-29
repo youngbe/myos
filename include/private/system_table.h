@@ -53,7 +53,7 @@ struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
 };
 
 extern struct Interrupt_Gate_Descriptor64 idt[256];
-extern struct TSS64 tss;
+extern struct TSS64* tsss;
 extern struct Segment_Descriptor gdt[6];
 
 void reinit_gdt();

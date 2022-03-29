@@ -151,8 +151,6 @@ _start:
     movl    %eax, %cr0
 1:
 
-    call    .Lclear
-
 
     //读取Bootloader剩余部分
     # 前 65 个扇区为bootloader
@@ -264,7 +262,6 @@ _start:
     .byte 0b10011010
     .byte 0b00100000
     .byte 0
-.Lgdt64_end:
 .Lgdt_code32:
     .word 0xffff
     .word 0
@@ -315,10 +312,6 @@ _start:
     exit_protected_mode
     sti
     jmp     .Lclear
-
-
-
-
 
 
 
@@ -570,13 +563,7 @@ _start:
     outb    %al, $0x21
 
 
-
-
-    // 进入64位长模式
-    # 重新加载gdt，删去不必要的段(16位和32位)
-    movw    $(.Lgdt64_end-.Lgdt_null-1), .Lgdt_ptr
-    lgdtl   .Lgdt_ptr
-
+    // 进入64位
     # 设置 %cr3
     movl    $0x20000, %eax
     movl    %eax, %cr3
@@ -608,8 +595,8 @@ _start:
     movw    %ax, %ss
     movw    %ax, %ds
     movw    %ax, %es
+    movl    .Lkernel_start_esp, %esp
     movq    $0, %rdi
     movq    $33, %rsi
-    call    map_keyboard_interrupt_to_vector
-    movl    .Lkernel_start_esp, %esp
+    callq   map_keyboard_interrupt_to_vector
     jmp     *.Lkernel_start_address

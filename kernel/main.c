@@ -2,9 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <system_table.h>
 #include <terminal.h>
 #include <hang_up.h>
-#include <system_table.h>
 
 __attribute__((noreturn))
 void main()
