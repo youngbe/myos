@@ -57,27 +57,33 @@ void reinit_gdt()
         uint16_t limit;
         uint64_t base;
     } gdtr={sizeof(gdt)-1, (uint64_t)(size_t)&gdt};
-    __asm__ volatile(
-            "movq   %%rsp, %rax\n\t"
-            "pushq  %[ds]\n\t"
-            "pushq  %%rax\n\t"
-            "pushfq\n\t"
-            "pushq  %[cs]\n\t"
-            "leaq   .Lreinit_gdt%=(%%rip), %%rax\n\t"
-            "pushq  %%rax\n\t"
-            "lgdtq  (%[pgdtr])\n\t"
-            "iretq\n"
-            ".Lreinit_gdt%=:\n\t"
-            "movq   %[ds], %%ds\n\t"
-            "movq   %[ds], %%es\n\t"
-            "movq   %[ds], %%fs\n\t"
-            "movq   %[ds], %%gs\n\t"
-            "movw   %[tss], %%ax\n\t"
-            "ltrw   %%ax"
-            :
-            :[pgdtr]"r"(&gdtr), "m"(gdtr), "m"(gdt), [ds]"r"((uint64_t)__DS), [cs]"i"(__CS), [tss]"i"(__TSS)
-            :"rax"
+    {
+        uint64_t temp_pgdtr=(uint64_t)(size_t)&gdtr;
+        uint64_t temp_ds=__DS;
+        __asm__ volatile(
+                "movq   %%rsp, %%rax\n\t"
+                "pushq  %[ds]\n\t"
+                "pushq  %%rax\n\t"
+                "pushfq\n\t"
+                "pushq  %[cs]\n\t"
+                "leaq   .Lreinit_gdt%=(%%rip), %%rax\n\t"
+                "pushq  %%rax\n\t"
+                "lgdtq  (%[pgdtr])\n\t"
+                "iretq\n"
+                ".Lreinit_gdt%=:\n\t"
+                "movq   %[ds], %%ds\n\t"
+                "movq   %[ds], %%es\n\t"
+                "movq   %[ds], %%fs\n\t"
+                "movq   %[ds], %%gs\n\t"
+                "movw   %[tss], %%ax\n\t"
+                "ltrw   %%ax"
+                // 之所以将[pgdtr]放在写入一栏
+                // 是为了防止编译器将 %[pgdtr] 放在 %rsp 上
+                :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds)
+                :"m"(gdtr), "m"(gdt), [cs]"i"(__CS), [tss]"i"(__TSS)
+                :"rax"
             );
+    }
 }
 
 __attribute__ ((interrupt))
