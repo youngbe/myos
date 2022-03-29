@@ -58,8 +58,9 @@ void reinit_gdt()
         uint64_t base;
     } gdtr={sizeof(gdt)-1, (uint64_t)(size_t)&gdt};
     __asm__ volatile(
+            "movq   %%rsp, %rax\n\t"
             "pushq  %[ds]\n\t"
-            "pushq  %%rsp\n\t"
+            "pushq  %%rax\n\t"
             "pushfq\n\t"
             "pushq  %[cs]\n\t"
             "leaq   .Lreinit_gdt%=(%%rip), %%rax\n\t"
@@ -67,16 +68,14 @@ void reinit_gdt()
             "lgdtq  (%[pgdtr])\n\t"
             "iretq\n"
             ".Lreinit_gdt%=:\n\t"
-            "movq   %[ds], %%rax\n\t"
-            "movq   %%rax, %%ds\n\t"
-            "movq   %%rax, %%es\n\t"
-            "movq   %%rax, %%fs\n\t"
-            "movq   %%rax, %%gs\n\t"
-            "addq   $8, %%rsp\n\t"
+            "movq   %[ds], %%ds\n\t"
+            "movq   %[ds], %%es\n\t"
+            "movq   %[ds], %%fs\n\t"
+            "movq   %[ds], %%gs\n\t"
             "movw   %[tss], %%ax\n\t"
             "ltrw   %%ax"
             :
-            :[pgdtr]"r"(&gdtr), "m"(gdtr), "m"(gdt), [ds]"i"((uint64_t)__DS), [cs]"i"(__CS), [tss]"i"(__TSS)
+            :[pgdtr]"r"(&gdtr), "m"(gdtr), "m"(gdt), [ds]"r"((uint64_t)__DS), [cs]"i"(__CS), [tss]"i"(__TSS)
             :"rax"
             );
 }

@@ -590,13 +590,13 @@ _start:
     ljmpl   $(.Lgdt_code64 - .Lgdt_null), $1f
     .code64
 1:
-    movw    %ax, %fs
-    movw    %ax, %gs
-    movw    %ax, %ss
-    movw    %ax, %ds
-    movw    %ax, %es
+    movq    %rax, %fs
+    movq    %rax, %gs
+    movq    %rax, %ss
+    movq    %rax, %ds
+    movq    %rax, %es
     movl    .Lkernel_start_esp, %esp
-    movq    $0, %rdi
+    xorq    %rdi, %rdi
     movq    $33, %rsi
     callq   map_keyboard_interrupt_to_vector
     jmp     *.Lkernel_start_address

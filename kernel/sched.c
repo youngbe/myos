@@ -48,7 +48,7 @@ void* timer_isr_helper()
     Thread*const new_running_thread=list_entry(current, Thread, schedulable_thread_list);
     running_threads[cpuid]=new_running_thread;
     tsss[cpuid].ist1=(uint64_t)(size_t)new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack);
-    return new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack)-20;
+    return new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack)-15*8;
 }
 
 /*
