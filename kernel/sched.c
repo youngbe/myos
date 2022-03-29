@@ -1,5 +1,5 @@
 #include <sched.h>
-#include <cpuid.h>
+#include <coreid.h>
 
 #include <system_table.h>
 
@@ -16,8 +16,8 @@ uint8_t (*cpu_stacks)[CPU_STACK_SIZE]=&cpu0_stack;
 // return new timer stack
 void* timer_isr_helper()
 {
-    const size_t cpuid=get_cpuid();
-    Thread*const running_thread=running_threads[cpuid];
+    const size_t coreid=get_coreid();
+    Thread*const running_thread=running_threads[coreid];
     List*const last=schedulable_thread_list_index;
     List*const current=last->next;
     if ( running_thread == NULL )
@@ -46,8 +46,8 @@ void* timer_isr_helper()
         schedulable_thread_list_index=running;
     }
     Thread*const new_running_thread=list_entry(current, Thread, schedulable_thread_list);
-    running_threads[cpuid]=new_running_thread;
-    tsss[cpuid].ist1=(uint64_t)(size_t)new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack);
+    running_threads[coreid]=new_running_thread;
+    tsss[coreid].ist1=(uint64_t)(size_t)new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack);
     return new_running_thread->thread_stack+sizeof(((Thread*)0)->thread_stack)-15*8;
 }
 

@@ -3,7 +3,7 @@
 
 #include <system_table.h>
 
-struct Segment_Descriptor __attribute__((aligned (32))) gdt[6]={
+static struct Segment_Descriptor __attribute__((aligned (32))) gdt[6]={
     // NULL Descriptor
     {0, 0, 0, 0, 0, 0},
     // Code64 Descriptor
@@ -36,8 +36,13 @@ static struct TSS64 __attribute__((aligned (32))) tss=
     0,
     0
 };
-struct TSS64 *tsss=&tss;
 
+size_t core_nums=1;
+// 每个逻辑核心一个struct Segment_Descriptor [6]
+struct Segment_Descriptor (*gdts)[6]=&gdt;
+// 每个逻辑核心一个struct TSS64
+struct TSS64 *tsss=&tss;
+// 整个系统唯一一个idt
 struct Interrupt_Gate_Descriptor64 __attribute__((aligned (32))) idt[256]=
 {
     [0 ... 31]={0, __CS, 2, 0b10001110, 0, 0 ,0},
@@ -45,18 +50,25 @@ struct Interrupt_Gate_Descriptor64 __attribute__((aligned (32))) idt[256]=
     [33 ... 255]={0, __CS, 2, 0b10001110, 0, 0 ,0}
 };
 
-void reinit_gdt()
+void init_gdt()
 {
-    gdt[GDT_ENTRY_TSS].base0=(uint16_t)(size_t)&tss;
-    gdt[GDT_ENTRY_TSS].base1=(uint8_t)(((size_t)&tss)>>16);
-    gdt[GDT_ENTRY_TSS].base2=(uint8_t)(((size_t)&tss)>>24);
-    gdt[GDT_ENTRY_TSS+1].limit0=(uint16_t)(((size_t)&tss)>>32);
-    gdt[GDT_ENTRY_TSS+1].base0=(uint16_t)(((size_t)&tss)>>48);
+    for ( size_t i=0; i<core_nums; ++i )
+    {
+        gdts[i][GDT_ENTRY_TSS].base0=(uint16_t)(size_t)&tsss[i];
+        gdts[i][GDT_ENTRY_TSS].base1=(uint8_t)(((size_t)&tsss[i])>>16);
+        gdts[i][GDT_ENTRY_TSS].base2=(uint8_t)(((size_t)&tsss[i])>>24);
+        gdts[i][GDT_ENTRY_TSS+1].limit0=(uint16_t)(((size_t)&tsss[i])>>32);
+        gdts[i][GDT_ENTRY_TSS+1].base0=(uint16_t)(((size_t)&tsss[i])>>48);
+    }
+}
+
+void reload_gdtr(const size_t core_id)
+{
     struct __attribute__((packed))
     {
         uint16_t limit;
         uint64_t base;
-    } gdtr={sizeof(gdt)-1, (uint64_t)(size_t)&gdt};
+    } gdtr={sizeof(*gdts)-1, (uint64_t)(size_t)&gdts[core_id]};
     {
         uint64_t temp_pgdtr=(uint64_t)(size_t)&gdtr;
         uint64_t temp_ds=__DS;
@@ -80,7 +92,7 @@ void reinit_gdt()
                 // 之所以将[pgdtr]放在写入一栏
                 // 是为了防止编译器将 %[pgdtr] 放在 %rsp 上
                 :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds)
-                :"m"(gdtr), "m"(gdt), [cs]"i"(__CS), [tss]"i"(__TSS)
+                :"m"(gdtr), "m"(gdts[core_id]), [cs]"i"(__CS), [tss]"i"(__TSS)
                 :"rax"
             );
     }
@@ -102,7 +114,7 @@ static inline void set_offset(size_t i, void* offset)
     idt[i].offset2=(uint32_t)(((size_t)offset)>>32);
 }
 
-void init_idt()
+void init_idt_and_load_idtr()
 {
     for (size_t i=0; i<256; ++i)
     {

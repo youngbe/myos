@@ -562,6 +562,48 @@ _start:
     outb    %al, $0xa1
     outb    %al, $0x21
 
+    // 初始化 x2APIC
+    movl    $0x1b, %ecx
+    rdmsr
+    testw   $(1<<10), %ax
+    jnz     1f
+    orw     $(1<<10), %ax
+    wrmsr
+1:
+    xorl    %edx, %edx
+    # Spurious Interrupt Vector Register
+    movl    $0x80F, %ecx
+    rdmsr
+    andl    $( ~( 0x3ff+(1<<12) ) ), %eax
+    orl     $( (1<<8) + 0xff), %eax
+    wrmsr
+
+    # LVT LINIT0 Register
+    movl    $0x835, %ecx
+    rdmsr
+
+    # LVT LINIT1 Register
+    movl    $0x836, %ecx
+    rdmsr
+    
+    # Divide Configuration Register
+    movl    $0x83e, %ecx
+    rdmsr
+    andl    $(~0xf), %eax
+    orl     $( 0b1010 ), %eax
+    wrmsr
+
+    # LVT Timer register
+    movl    $0x832, %ecx
+    rdmsr
+    andl    $( ~( 0xff+(7<<16) ) ), %eax
+    orl     $( (0b01<<17) + 0x20 ), %eax
+    wrmsr
+
+    # count
+    movl    $491520, %eax
+    movl    $0x838, %ecx
+    wrmsr
 
     // 进入64位
     # 设置 %cr3

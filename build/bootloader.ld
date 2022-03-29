@@ -15,4 +15,6 @@ SECTIONS
         *(.bss)
     }
     ASSERT( . <= 0x10000, "Bootloader too large!" )
+    .init_array : { *(.init_array) }
+    ASSERT( SIZEOF(.init_array) == 0, ".init_array exist!" )
 }

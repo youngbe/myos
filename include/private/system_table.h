@@ -52,12 +52,14 @@ struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
     uint32_t reserve;
 };
 
-extern struct Interrupt_Gate_Descriptor64 idt[256];
+extern struct Segment_Descriptor (*gdts)[6];
 extern struct TSS64* tsss;
-extern struct Segment_Descriptor gdt[6];
+extern struct Interrupt_Gate_Descriptor64 idt[256];
+extern size_t core_nums;
 
-void reinit_gdt();
-void init_idt();
+void init_gdt();
+void reload_gdtr(const size_t core_id);
+void init_idt_and_load_idtr();
 
 __attribute__ ((interrupt)) void empty_isr(void *rsp);
 __attribute__ ((interrupt)) void timer_isr(void* rsp);

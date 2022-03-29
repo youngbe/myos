@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-static inline size_t get_cpuid()
+static inline size_t get_coreid()
 {
     uint32_t apicid;
     __asm__ volatile
