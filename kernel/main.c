@@ -10,11 +10,13 @@
 __attribute__((noreturn))
 void main()
 {
-    // 重新加载gdt
-    init_gdt();
+    init_gdts();
+    init_tsss();
+    init_idt();
+
     reload_gdtr(get_coreid());
-    // 加载idt
-    init_idt_and_load_idtr();
+    load_tr();
+    load_idtr();
 
     tclear();
     tputs("Hello world!");

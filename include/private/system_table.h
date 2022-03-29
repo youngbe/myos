@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define GDT_ENTRY_NULL      0
 #define GDT_ENTRY_CS        1
 #define GDT_ENTRY_CS_USER   2
@@ -11,6 +13,8 @@
 #define __DS        (GDT_ENTRY_NULL<<3)
 #define __DS_USER   ((GDT_ENTRY_DS_USER<<3)|0b11)
 #define __TSS       (GDT_ENTRY_TSS<<3)
+
+#define CORE_STACK_SIZE 1024
 
 struct __attribute__ ((packed)) Segment_Descriptor
 {
@@ -52,14 +56,23 @@ struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
     uint32_t reserve;
 };
 
-extern struct Segment_Descriptor (*gdts)[6];
-extern struct TSS64* tsss;
-extern struct Interrupt_Gate_Descriptor64 idt[256];
+// 逻辑核心数量
 extern size_t core_nums;
+// 每个逻辑核心一个struct Segment_Descriptor [6]
+extern struct Segment_Descriptor (*gdts)[6];
+// 每个逻辑核心一个struct TSS64
+extern struct TSS64* tsss;
+// 整个系统唯一一个idt
+extern struct Interrupt_Gate_Descriptor64 idt[256];
+// 每个逻辑核心一个core_stack，用于处理该核心的中断
+extern uint8_t (*core_stacks)[CORE_STACK_SIZE];
 
-void init_gdt();
+void init_gdts();
 void reload_gdtr(const size_t core_id);
-void init_idt_and_load_idtr();
+void init_tsss();
+void load_tr();
+void init_idt();
+void load_idtr();
 
 __attribute__ ((interrupt)) void empty_isr(void *rsp);
 __attribute__ ((interrupt)) void timer_isr(void* rsp);

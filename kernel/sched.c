@@ -10,9 +10,6 @@ List* schedulable_thread_list_index=NULL;
 static Thread* running_thread0=NULL;
 Thread** running_threads=&running_thread0;
 
-static uint8_t __attribute__((aligned(32))) cpu0_stack[CPU_STACK_SIZE];
-uint8_t (*cpu_stacks)[CPU_STACK_SIZE]=&cpu0_stack;
-
 // return new timer stack
 void* timer_isr_helper()
 {

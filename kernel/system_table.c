@@ -18,25 +18,11 @@ static struct Segment_Descriptor __attribute__((aligned (32))) gdt[6]={
     {0, 0, 0, 0 ,0 , 0}
 };
 
-static struct TSS64 __attribute__((aligned (32))) tss=
-{
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-};
+static struct TSS64 __attribute__((aligned (32))) tss;
 
+static uint8_t core0_stack[CORE_STACK_SIZE];
+
+// 逻辑核心数量
 size_t core_nums=1;
 // 每个逻辑核心一个struct Segment_Descriptor [6]
 struct Segment_Descriptor (*gdts)[6]=&gdt;
@@ -49,8 +35,10 @@ struct Interrupt_Gate_Descriptor64 __attribute__((aligned (32))) idt[256]=
     [32]={0, __CS, 1, 0b10001110, 0, 0 ,0},
     [33 ... 255]={0, __CS, 2, 0b10001110, 0, 0 ,0}
 };
+// 每个逻辑核心一个core_stack，用于处理该核心的中断
+uint8_t (*core_stacks)[CORE_STACK_SIZE]=&core0_stack;
 
-void init_gdt()
+void init_gdts()
 {
     for ( size_t i=0; i<core_nums; ++i )
     {
@@ -86,16 +74,31 @@ void reload_gdtr(const size_t core_id)
                 "movq   %[ds], %%ds\n\t"
                 "movq   %[ds], %%es\n\t"
                 "movq   %[ds], %%fs\n\t"
-                "movq   %[ds], %%gs\n\t"
-                "movw   %[tss], %%ax\n\t"
-                "ltrw   %%ax"
+                "movq   %[ds], %%gs"
                 // 之所以将[pgdtr]放在写入一栏
                 // 是为了防止编译器将 %[pgdtr] 放在 %rsp 上
                 :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds)
-                :"m"(gdtr), "m"(gdts[core_id]), [cs]"i"(__CS), [tss]"i"(__TSS)
+                :"m"(gdtr), "m"(gdts[core_id]), [cs]"i"(__CS)
                 :"rax"
             );
     }
+}
+
+void init_tsss()
+{
+    for (size_t i=0; i<core_nums; ++i)
+    {
+        tsss[i]=(struct TSS64){0, 0, 0, 0, 0, (uint64_t)(size_t)core_stacks[i], (uint64_t)(size_t)core_stacks[i], 0, 0, 0, 0, 0, 0, 0, 0};
+    }
+}
+
+void load_tr()
+{
+    __asm__ volatile(
+            "ltrw   %[tss]"
+            :
+            :[tss]"rm"((uint16_t)__TSS), "m"(*(struct TSS64 (*)[])tsss)
+            :);
 }
 
 __attribute__ ((interrupt))
@@ -114,7 +117,7 @@ static inline void set_offset(size_t i, void* offset)
     idt[i].offset2=(uint32_t)(((size_t)offset)>>32);
 }
 
-void init_idt_and_load_idtr()
+void init_idt()
 {
     for (size_t i=0; i<256; ++i)
     {
@@ -122,6 +125,10 @@ void init_idt_and_load_idtr()
     }
     set_offset(32, (void *)timer_isr);
     set_offset(33, (void *)keyboard_isr);
+}
+
+void load_idtr()
+{
     struct __attribute__((packed))
     {
         uint16_t limit;
