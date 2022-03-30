@@ -44,17 +44,17 @@ timer_isr:
     movq    $1, %rbx
 1:
     xorq    %rax, %rax
-    cmpxchgq    %rbx, schedulable_thread_list_mutex
+    cmpxchgq    %rbx, schedulable_thread_list_mutex(%rip)
     jne     1b
 
-    cmpq    $0, schedulable_thread_list_index
+    cmpq    $0, schedulable_thread_list_index(%rip)
     jne     1f
-    movq    $0, schedulable_thread_list_mutex
+    movq    $0, schedulable_thread_list_mutex(%rip)
     pop_all_registers
     iretq
 1:
     call    timer_isr_helper
-    movq    $0, schedulable_thread_list_mutex
+    movq    $0, schedulable_thread_list_mutex(%rip)
     movq    %rax, %rsp
     pop_all_registers
     iretq

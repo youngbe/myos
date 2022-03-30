@@ -9,9 +9,9 @@ keyboard_isr:
     pushq   %rdx
     inb     $0x60, %al
     movb    %al, 0xb800c
-    movb    1b, %al
+    movb    1b(%rip), %al
     movb    %al, 0xb8010
-    incb    1b
+    incb    1b(%rip)
     xorq    %rdx, %rdx
     xorq    %rax, %rax
     movl    $0x80b, %ecx

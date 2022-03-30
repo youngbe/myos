@@ -3,18 +3,41 @@ OUTPUT_ARCH(i386:x86-64)
 ENTRY(main)
 SECTIONS
 {
+    mytemp0 : {
+        *(.text.startup.*)
+    }
+    ASSERT( SIZEOF(mytemp0) == 0, "unknown startup code!" )
+
+    mytemp1 : {
+        *(.fini)
+        *(.fini_array)
+        *(.text.exit)
+    }
+    ASSERT( SIZEOF(mytemp1) == 0, "terminate code exist!" )
+
+    mytemp2 : {
+        *(.pre_initarray)
+        *(.init)
+        *(.init_array)
+    }
+    ASSERT( SIZEOF(mytemp2) == 0, "init code exist!" )
+
+    nouse_section (NOLOAD) : {
+        *(.note .note.*)
+        *(.comment .comment.*)
+    }
+
     .text 0x0 : {
         *(.text.startup)
-        *(.text)
+        *(.text .text.*)
     }
-    .rodata ALIGN(32) : { *(.rodata) }
+    .rodata ALIGN(32) : { *(.rodata .rodata.*) }
     .data ALIGN(32) : {
-        *(.data)
+        *(.data .data.*)
         . = ALIGN(32);
-        *(.bss)
+        *(.bss .bss.*)
     }
-    /* 当C语言使用__attribute__((constructor))或者c++在全局变量初始化时需要调用函数时，.init_array节就会出现 */
-    /* 这部分的代码将在main函数之前执行 */
-    .init_array : { *(.init_array) }
-    ASSERT( SIZEOF(.init_array) == 0, ".init_array exist!" )
+    
+    mytemp3 : { * }
+    ASSERT( SIZEOF(mytemp3) == 0, "unknown section exist!" )
 }
