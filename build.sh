@@ -50,6 +50,8 @@ set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
     -mgeneral-regs-only -fno-pie -mno-red-zone -m32 -fno-pie \
     -S boot/handle_memory_map.c -o out/handle_memory_map.s
+    echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
+    mv out/handle_memory_map.s.new out/handle_memory_map.s
 $AS --64 out/handle_memory_map.s -o out/handle_memory_map.o
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
