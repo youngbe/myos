@@ -3,12 +3,10 @@ OUTPUT_ARCH(i386:x86-64)
 ENTRY(main)
 SECTIONS
 {
-    ASSERT( . == 0 , "ld script error!0" )
     mytemp0 : {
         *(.text.startup.*)
     }
     ASSERT( SIZEOF(mytemp0) == 0, "unknown startup code!" )
-    ASSERT( . == 0 , "ld script error!2" )
 
     mytemp1 : {
         *(.fini)
@@ -16,7 +14,6 @@ SECTIONS
         *(.text.exit)
     }
     ASSERT( SIZEOF(mytemp1) == 0, "terminate code exist!" )
-    ASSERT( . == 0 , "ld script error!3" )
 
     mytemp2 : {
         *(.pre_initarray)
@@ -24,7 +21,6 @@ SECTIONS
         *(.init_array)
     }
     ASSERT( SIZEOF(mytemp2) == 0, "init code exist!" )
-    ASSERT( . == 0 , "ld script error!4" )
 
     .rela.dyn   :
     {
@@ -45,7 +41,6 @@ SECTIONS
         *(.rela.ifunc)
     }
     ASSERT( SIZEOF(.rela.dyn) == 0 , ".rela.dyn exist!" )
-    ASSERT( . == 0 , "ld script error!1x" )
 
     /DISCARD/   :
     {
@@ -54,7 +49,7 @@ SECTIONS
         *(.interp)
     }
 
-    ASSERT( . == 0 , "ld script error!1" )
+    ASSERT( . == 0 , "ld script error!" )
 
     .text ALIGN(32) : {
         *(.text.startup)
