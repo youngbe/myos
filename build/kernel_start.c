@@ -29,9 +29,9 @@ void _start()
     {
         if ( __start_rela_dyn[i].info != 8 )
         {
-            while(1);
+            goto label_error;
         }
-        *(uint64_t volatile *)((size_t)_start+__start_rela_dyn[i].offset)+=__start_rela_dyn[i].append;
+        *(uint64_t volatile *)((size_t)_start+__start_rela_dyn[i].offset)=(uint64_t)((size_t)_start+__start_rela_dyn[i].append);
     }
     for ( size_t i=0; &__start_init_array[i]<__stop_init_array; ++i )
     {
@@ -54,7 +54,7 @@ void _start()
             ++temp;
         }
     }
-    *(char *)0xb8000='K';
+    (*(char (*)[80*25*2])0xb8000)[0]='K';
     *(char *)0xb8002='e';
     *(char *)0xb8004='r';
     *(char *)0xb8006='n';
@@ -99,7 +99,7 @@ label_error:
             "hlt\n\t"
             "jmp   1b"
             :
-            :"m"(*(char (*)[80*160*2])0xb8000)
+            :"m"(*(char (*)[80*25*2])0xb8000)
             :
             );
     __builtin_unreachable();
