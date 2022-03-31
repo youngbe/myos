@@ -3,25 +3,22 @@ OUTPUT_ARCH(i386:x86-64)
 ENTRY(main)
 SECTIONS
 {
-    mytemp0 : {
-        *(.text.startup.*)
-    }
-    ASSERT( SIZEOF(mytemp0) == 0, "unknown startup code!" )
-
     mytemp1 : {
-        *(.fini)
-        *(.fini_array)
-        *(.text.exit)
+        KEEP (*(SORT_NONE(.fini)))
+        KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
+        KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
     }
     ASSERT( SIZEOF(mytemp1) == 0, "terminate code exist!" )
 
     mytemp2 : {
-        *(.pre_initarray)
-        *(.init)
-        *(.init_array)
+        KEEP (*(SORT_NONE(.init)))
+        KEEP (*(.preinit_array))
+        KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
     }
     ASSERT( SIZEOF(mytemp2) == 0, "init code exist!" )
 
+    ASSERT( . == 0 , "ld script error!" )
     .rela.dyn   :
     {
         *(.rela.init)
@@ -46,12 +43,14 @@ SECTIONS
     ASSERT( . == 0 , "ld script error!" )
 
     .text ALIGN(32) : {
-        *(.text.startup)
+        *(.text.startup .text.startup.*)
+        *(.text.unlikely .text.*_unlikely .text.unlikely.*)
+        *(.text.exit .text.exit.*)
         *(.text.hot .text.hot.*)
         *(SORT(.text.sorted.*))
         *(.text .text.*)
-        *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     }
+    ASSERT ( main == 0, "main start address error!" )
     .rodata ALIGN(32) :
     {
         *(.rodata .rodata.*) 
