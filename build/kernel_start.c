@@ -13,12 +13,6 @@ struct __attribute__((packed)) Elf64_Rela
 
 int main();
 
-extern void (*__start_init_array[])();
-extern void (*__stop_init_array[])();
-
-extern void (*__start_fini_array[])();
-extern void (*__stop_fini_array[])();
-
 extern struct Elf64_Rela __start_rela_dyn[];
 extern struct Elf64_Rela __stop_rela_dyn[];
 
@@ -33,38 +27,25 @@ void _start()
         }
         *(uint64_t volatile *)((size_t)_start+__start_rela_dyn[i].offset)=(uint64_t)((size_t)_start+__start_rela_dyn[i].append);
     }
-    for ( size_t i=0; &__start_init_array[i]<__stop_init_array; ++i )
-    {
-        __start_init_array[i]();
-    }
     main();
-    for ( size_t i=0; &__start_fini_array[i]<__stop_fini_array; ++i )
+    for ( size_t i=0; i<80*25; ++i )
     {
-        __start_fini_array[i]();
-    }
-    {
-        size_t* temp=(size_t *)0xb8000;
-        while ( true )
-        {
-            *(size_t *)temp=0x0700070007000700;
-            if ( temp >= (size_t *)(0xb8000+80*25*2-sizeof(size_t)) )
-            {
-                break;
-            }
-            ++temp;
-        }
+        (*(uint16_t (*)[80*25])0xb8000)[i]=0x0700;
     }
     (*(char (*)[80*25*2])0xb8000)[0]='K';
-    *(char *)0xb8002='e';
-    *(char *)0xb8004='r';
-    *(char *)0xb8006='n';
-    *(char *)0xb8008='e';
-    *(char *)0xb800a='l';
-    *(char *)0xb800c=' ';
-    *(char *)0xb800e='e';
-    *(char *)0xb8010='n';
-    *(char *)0xb8002='d';
-    *(char *)0xb8004='!';
+    (*(char (*)[80*25*2])0xb8000)[2]='e';
+    (*(char (*)[80*25*2])0xb8000)[4]='r';
+    (*(char (*)[80*25*2])0xb8000)[6]='n';
+    (*(char (*)[80*25*2])0xb8000)[8]='e';
+    (*(char (*)[80*25*2])0xb8000)[10]='l';
+    (*(char (*)[80*25*2])0xb8000)[12]=' ';
+    (*(char (*)[80*25*2])0xb8000)[14]='e';
+    (*(char (*)[80*25*2])0xb8000)[16]='x';
+    (*(char (*)[80*25*2])0xb8000)[18]='i';
+    (*(char (*)[80*25*2])0xb8000)[20]='t';
+    (*(char (*)[80*25*2])0xb8000)[22]='e';
+    (*(char (*)[80*25*2])0xb8000)[24]='d';
+    (*(char (*)[80*25*2])0xb8000)[26]='!';
     __asm__ volatile
         (
          "cli\n"
@@ -77,22 +58,16 @@ void _start()
          );
     __builtin_unreachable();
 label_error:
-    size_t* temp=(size_t *)0xb8000;
-    while ( true )
+    for ( size_t i=0; i<80*25; ++i )
     {
-        *(size_t *)temp=0x0700070007000700;
-        if ( temp >= (size_t *)(0xb8000+80*25*2-sizeof(size_t)) )
-        {
-            break;
-        }
-        ++temp;
+        (*(uint16_t (*)[80*25])0xb8000)[i]=0x0700;
     }
-    *(char *)0xb8000='E';
-    *(char *)0xb8002='r';
-    *(char *)0xb8004='r';
-    *(char *)0xb8006='o';
-    *(char *)0xb8008='r';
-    *(char *)0xb800a='!';
+    (*(char (*)[80*25*2])0xb8000)[0]='E';
+    (*(char (*)[80*25*2])0xb8000)[2]='r';
+    (*(char (*)[80*25*2])0xb8000)[4]='r';
+    (*(char (*)[80*25*2])0xb8000)[6]='o';
+    (*(char (*)[80*25*2])0xb8000)[8]='r';
+    (*(char (*)[80*25*2])0xb8000)[10]='!';
     __asm__ volatile(
             "cli\n"
             "1:\n\t"

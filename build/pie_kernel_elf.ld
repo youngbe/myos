@@ -5,14 +5,17 @@ SECTIONS
 {
     mytemp1 : {
         *(.fini)
+        *(.fini_array)
     }
-    ASSERT( SIZEOF(mytemp1) == 0, "Unsupport terminate code exist!" )
+    ASSERT( SIZEOF(mytemp1) == 0, "terminate code exist!" )
 
     mytemp2 : {
         *(.pre_initarray)
         *(.init)
+        KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
     }
-    ASSERT( SIZEOF(mytemp2) == 0, "Usupport init code exist!" )
+    ASSERT( SIZEOF(mytemp2) == 0, "init code exist!" )
 
     ASSERT( . == 0 , "ld script error!" )
 
@@ -60,18 +63,6 @@ SECTIONS
         *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
         *(.rela.ifunc)
         __stop_rela_dyn = . ;
-    }
-    .init_array ALIGN(8) :
-    {
-        __start_init_array = . ;
-        *(.init_array)
-        __stop_init_array = . ;
-    }
-    .fini_array ALIGN(8) :
-    {
-        __start_fini_array = . ;
-        *(.fini_array)
-        __stop_fini_array = . ;
     }
 
     .note.gnu.build-id  : { *(.note.gnu.build-id) }
