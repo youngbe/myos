@@ -50,7 +50,7 @@
 .Lheap_end:
 
     # 此处地址0x7c00，以下部分将会被加载到内存执行
-    .section .text.startup
+    .section .text.entry_point
     .code16
     .globl _start
 _start:

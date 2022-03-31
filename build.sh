@@ -10,22 +10,14 @@ GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" \
 # 开启LTO优化的FLAGS
 LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
 
-# 使用这个选项可以编译出特殊的可重定位elf文件
-# 特殊的可重定位elf文件和普通的可重定位elf文件一样，可以被执行
-# 其特殊之处在于，可以使用`objcopy -j .text -j .data -j .rodata`制作出可重定位的二进制文件
-MAGICAL_PIE_ELF_FLAGS=("-fpie" "-T" "build/magical_pie_elf.ld" "-pie")
-
-# 加上这个 FLAGS 可以编译出纯二进制的可重定位可执行程序
-# 可以加载到内存任意位置然后直接跳转过去就能执行
-# 此选项已经弃用，因为GOTPCREL
-PIE_BINARY_FLAGS=("该选项已弃用" "-fpie" "-pie" "-T" "build/pie_binary.ld")
-
 # 加上这个 FLAGS 将移除所有库，编译纯C程序
 PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
 
 KERNEL_CFLAGS=("${PURE_C_FLAGS[@]}" "-ffreestanding" "-mno-red-zone" "-mgeneral-regs-only")
 
-PIE_KERNEL_ELF_FLAGS=("${KERNEL_CFLAGS[@]}" "-fpie" "-T" "build/pie_kernel_elf.ld" "-pie" "build/kernel_start.c")
+PIE_KERNEL_ELF_OUTPUT_FLAGS=("${KERNEL_CFLAGS[@]}" "-fpie" "-T" "build/pie_kernel_elf.ld" "-pie" "build/kernel_start.c")
+
+BOOTLOADER_BIN_OUTPUT_FLAGS=("${PURE_C_FLAGS[@]}" "-mno-red-zone" "-mgeneral-regs-only" "-fno-pie" "-T" "build/bootloader.ld" "-no-pie")
 
 if [ -z "$CC" ]; then
     CC="x86_64-linux-gnu-gcc"
@@ -58,27 +50,18 @@ check_dependency()
 check_dependency
 mkdir out 2>/dev/null
 set -e
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -fno-pie -mno-red-zone -m32 -fno-pie \
-    -S boot/handle_memory_map.c -o out/handle_memory_map.s
-    echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
-    mv out/handle_memory_map.s.new out/handle_memory_map.s
-$AS --64 out/handle_memory_map.s -o out/handle_memory_map.o
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
+    -m32 -S \
+    boot/handle_memory_map.c \
+    -o out/handle_memory_map.s
+echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
+mv out/handle_memory_map.s.new out/handle_memory_map.s
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -fno-pie -mno-red-zone \
-    -c boot/RSDP.c -o out/RSDP.o
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -fno-pie -mno-red-zone \
-    -c boot/MADT.c -o out/MADT.o
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" \
-    -mgeneral-regs-only -fno-pie -mno-red-zone \
-    -c boot/init_ioapic_keyboard.c -o out/init_ioapic_keyboard.o
-$AS --64 boot/bootloader.s -o out/bootloader_main.o
-$LD -T build/bootloader.ld -no-pie -nostdlib -o out/bootloader.bin out/bootloader_main.o out/handle_memory_map.o out/RSDP.o out/MADT.o out/init_ioapic_keyboard.o
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
+    boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c \
+    -o out/bootloader.bin
 
-
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
     -o out/kernel.elf
