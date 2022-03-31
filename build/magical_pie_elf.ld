@@ -42,12 +42,6 @@ SECTIONS
     }
     ASSERT( SIZEOF(.rela.dyn) == 0 , ".rela.dyn exist!" )
 
-    /DISCARD/   :
-    {
-        *(.note .note.*)
-        *(.comment .comment.*)
-        *(.interp)
-    }
 
     ASSERT( . == 0 , "ld script error!" )
 
@@ -58,18 +52,35 @@ SECTIONS
         *(.text .text.*)
         *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     }
-    .rodata ALIGN(32) : { *(.rodata .rodata.*) }
+    .rodata ALIGN(32) :
+    {
+        *(.rodata .rodata.*) 
+        /**(.gnu.linkonce.r.*)*/
+    }
     .data ALIGN(32) : {
         *(.data .data.*)
+        /**(.gnu.linkonce.d.*)*/
+        SORT(CONSTRUCTORS)
         . = ALIGN(32);
+        /**(.dynbss) */
         *(.bss .bss.*)
+        /**(.gnu.linkonce.b.*)*/
+        /**(COMMON) */
     }
 
+    .note.gnu.build-id  : { *(.note.gnu.build-id) }
     .hash           : { *(.hash) }
     .gnu.hash       : { *(.gnu.hash) }
     .dynsym         : { *(.dynsym) }
     .dynstr         : { *(.dynstr) }
     .dynamic        : { *(.dynamic) }
+
+    /DISCARD/   :
+    {
+        *(.note)
+        *(.comment .comment.*)
+        *(.interp)
+    }
 
     /*
   .rela.plt       :
@@ -83,6 +94,6 @@ SECTIONS
 .plt.sec        : { *(.plt.sec) }
   .got            : { *(.got.plt) *(.igot.plt) *(.got) *(.igot) }
 */
-    mytemp3 : { * }
+    mytemp3 : { *(*) }
     ASSERT( SIZEOF(mytemp3) == 0, "unknown section exist!" )
 }

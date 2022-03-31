@@ -39,6 +39,6 @@ SECTIONS
         *(.bss .bss.*)
     }
     ASSERT( . <= 0x10000, "Bootloader too large!" )
-    mytemp3 : { * }
+    mytemp3 : { *(*) }
     ASSERT( SIZEOF(mytemp3) == 0, "unknown section exist!" )
 }

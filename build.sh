@@ -13,7 +13,7 @@ LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-lin
 # 使用这个选项可以编译出特殊的可重定位elf文件
 # 特殊的可重定位elf文件和普通的可重定位elf文件一样，可以被执行
 # 其特殊之处在于，可以使用`objcopy -j .text -j .data -j .rodata`制作出可重定位的二进制文件
-MAGICAL_PIE_ELF_FLAGS=("-fpie" "-T" "build/magical_pie_elf.ld" "-pie" "-s" "-Wl,--build-id=none")
+MAGICAL_PIE_ELF_FLAGS=("-fpie" "-T" "build/magical_pie_elf.ld" "-pie")
 
 # 加上这个 FLAGS 可以编译出纯二进制的可重定位可执行程序
 # 可以加载到内存任意位置然后直接跳转过去就能执行
@@ -36,6 +36,9 @@ if [ -z "$AS" ]; then
 fi
 if [ -z "$LD" ]; then
     LD="x86_64-linux-gnu-ld"
+fi
+if [ -z "$OBJCOPY" ]; then
+    OBJCOPY="x86_64-linux-gnu-objcopy"
 fi
 
 check_dependency()
@@ -77,7 +80,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${MAGICAL_
     -I include/public -I include/private \
     kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
     -o out/kernel.elf
-objcopy -O binary -j .text -j .rodata -j .data out/kernel.elf out/kernel.bin
+$OBJCOPY -O binary -j .text -j .rodata -j .data out/kernel.elf out/kernel.bin
 #ld -T build/build.ld -pie out/main.o -o out/kernel.bin
 
 $HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
