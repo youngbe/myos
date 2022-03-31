@@ -50,7 +50,7 @@ check_dependency()
 check_dependency
 mkdir out 2>/dev/null
 set -e
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PURE_C_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
     -m32 -S \
     boot/handle_memory_map.c \
     -o out/handle_memory_map.s
