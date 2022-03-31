@@ -2,7 +2,7 @@
 
 # GCC 通用 CFLAGS ，主要是开一些优化，关闭一些安全机制提升程序效率
 GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" \
-    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" \
+    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
     "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
     "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
     "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
@@ -21,9 +21,11 @@ MAGICAL_PIE_ELF_FLAGS=("-fpie" "-T" "build/magical_pie_elf.ld" "-pie")
 PIE_BINARY_FLAGS=("该选项已弃用" "-fpie" "-pie" "-T" "build/pie_binary.ld")
 
 # 加上这个 FLAGS 将移除所有库，编译纯C程序
-PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib")
+PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
 
-KERNEL_CFLAGS=("-ffreestanding" "-mno-red-zone" "-mgeneral-regs-only")
+KERNEL_CFLAGS=("${PURE_C_FLAGS[@]}" "-ffreestanding" "-mno-red-zone" "-mgeneral-regs-only")
+
+PIE_KERNEL_ELF_FLAGS=("${KERNEL_CFLAGS[@]}" "-fpie" "-T" "build/pie_kernel_elf.ld" "-pie" "build/kernel_start.c")
 
 if [ -z "$CC" ]; then
     CC="x86_64-linux-gnu-gcc"
@@ -76,12 +78,12 @@ $AS --64 boot/bootloader.s -o out/bootloader_main.o
 $LD -T build/bootloader.ld -no-pie -nostdlib -o out/bootloader.bin out/bootloader_main.o out/handle_memory_map.o out/RSDP.o out/MADT.o out/init_ioapic_keyboard.o
 
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PURE_C_FLAGS[@]}" "${MAGICAL_PIE_ELF_FLAGS[@]}" "${KERNEL_CFLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_FLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
     -o out/kernel.elf
-$OBJCOPY -O binary -j .text -j .rodata -j .data out/kernel.elf out/kernel.bin
-#ld -T build/build.ld -pie out/main.o -o out/kernel.bin
+$OBJCOPY -O binary -j .text -j .rodata -j .data -j .rela.dyn -j .init_array -j .fini_array out/kernel.elf out/kernel.bin
+
 
 $HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
 out/build_helper out/kernel.bin out/kernel_size
