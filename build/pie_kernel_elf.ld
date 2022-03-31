@@ -4,14 +4,15 @@ ENTRY(_start)
 SECTIONS
 {
     mytemp1 : {
-        *(.fini)
-        *(.fini_array)
+        KEEP (*(SORT_NONE(.fini)))
+        KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
+        KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
     }
     ASSERT( SIZEOF(mytemp1) == 0, "terminate code exist!" )
 
     mytemp2 : {
-        *(.pre_initarray)
-        *(.init)
+        KEEP (*(SORT_NONE(.init)))
+        KEEP (*(.preinit_array))
         KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
         KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
     }
@@ -22,7 +23,7 @@ SECTIONS
     .text ALIGN(32) : {
         *(.text.entry_point)
         *(.text.unlikely .text.*_unlikely .text.unlikely.*)
-        *(.text.exit)
+        *(.text.exit .text.exit.*)
         *(.text.startup .text.startup.*)
         *(.text.hot .text.hot.*)
         *(SORT(.text.sorted.*))
