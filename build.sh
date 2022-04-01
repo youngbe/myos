@@ -61,11 +61,16 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@
     boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c \
     -o out/bootloader.bin
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
     -o out/kernel.elf
-$OBJCOPY -O binary -j .text -j .rodata -j .data -j .rela.dyn -j .init_array -j .fini_array out/kernel.elf out/kernel.bin
+$OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
+    -j .rodata --set-section-flags .rodata=load,content,alloc \
+    -j .data --set-section-flags .data=load,content,alloc \
+    -j .bss --set-section-flags .bss=load,content,alloc \
+    -j .rela.dyn --set-section-flags .rela.dyn=load,content,alloc \
+    out/kernel.elf out/kernel.bin
 
 
 $HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper

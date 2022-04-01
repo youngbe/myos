@@ -39,7 +39,9 @@ SECTIONS
         *(.data .data.*)
         /**(.gnu.linkonce.d.*)*/
         SORT(CONSTRUCTORS)
-        . = ALIGN(32);
+    }
+    .bss ALIGN(32) :
+    {
         /**(.dynbss) */
         *(.bss .bss.*)
         /**(.gnu.linkonce.b.*)*/
