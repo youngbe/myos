@@ -61,7 +61,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@
     boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c \
     -o out/bootloader.bin
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
     -I include/public -I include/private \
     kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
     -o out/kernel.elf
