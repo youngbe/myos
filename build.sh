@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # GCC 通用 CFLAGS ，主要是开一些优化，关闭一些安全机制提升程序效率
-GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" "-pedantic" \
+GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" \
     "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
     "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
     "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
@@ -52,18 +52,20 @@ mkdir out 2>/dev/null
 set -e
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
     -m32 -S \
+    -I libc/include -I include \
     boot/handle_memory_map.c \
     -o out/handle_memory_map.s
 echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
 mv out/handle_memory_map.s.new out/handle_memory_map.s
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
-    boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c \
+    -I libc/include -I include \
+    boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c boot/error.c \
     -o out/bootloader.bin
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-    -I include/public -I include/private \
-    kernel/main.c kernel/terminal.c kernel/system_table.c kernel/keyboard_isr.s kernel/timer_isr.s kernel/sched.c \
+    -I kernel/include -I libc/include -I include \
+    kernel/main.c \
     -o out/kernel.elf
 $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .rodata --set-section-flags .rodata=load,content,alloc \

@@ -1,4 +1,5 @@
-#include "libc.h"
+#pragma once
+#include <stdint.h>
 
 static inline void write_ioapic_register(void *const apic_base, const uint32_t offset, const uint32_t val)
 {

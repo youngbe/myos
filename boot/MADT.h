@@ -1,37 +1,40 @@
 #pragma once
-#include "libc.h"
+#include <stdint.h>
+#include <stddef.h>
+
+
 #include "ACPI.h"
 
-struct MADT
+struct __attribute__((packed)) MADT
 {
     struct ACPISDTHeader h;
     uint32_t local_apic_address;
     uint32_t flag;
-} __attribute__ ((packed));
+};
 
-struct Madt_entry_header
+struct __attribute__((packed)) Madt_entry_header
 {
     uint8_t entry_type;
     uint8_t entry_length;
-} __attribute__ ((packed));
+};
 
-struct IO_APIC
+struct __attribute__((packed)) IO_APIC
 {
     struct Madt_entry_header h;
     uint8_t id;
     uint8_t reserve;
     uint32_t address;
     uint32_t gsi_base;
-} __attribute__ ((packed));
+};
 
-struct Interrupt_Source_Override
+struct __attribute__((packed)) Interrupt_Source_Override
 {
     struct Madt_entry_header h;
     uint8_t bus;
     uint8_t irq;
     uint32_t gsi;
     uint16_t flag;
-} __attribute__ ((packed));
+};
 
 struct 
 {

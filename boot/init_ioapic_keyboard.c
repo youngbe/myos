@@ -1,4 +1,8 @@
-#include "libc.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+
+
 #include "RSDP.h"
 #include "ACPI.h"
 #include "MADT.h"

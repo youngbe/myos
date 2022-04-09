@@ -1,5 +1,6 @@
 #pragma once
-#include "libc.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 struct ACPISDTHeader
 {

@@ -1,4 +1,6 @@
-#include "libc.h"
+#include <string.h>
+#include <stdint.h>
+
 #include "RSDP.h"
 
 // 应该有且只有一个有效的RSDP

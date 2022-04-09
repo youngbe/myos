@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tools.h>
+
 typedef unsigned long int size_t;
 typedef signed long int ssize_t;
 
@@ -13,5 +15,8 @@ typedef signed long int ssize_t;
 #endif  /* C++ */
 #endif  /* G++ */
 
-//#define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
-#define offsetof(type, member) ((size_t)&((type*)0)->member)
+#if __has_builtin(__builtin_offsetof)
+#  define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
+#else
+#  define offsetof(type, member) ((size_t)&((type*)0)->member)
+#endif

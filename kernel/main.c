@@ -1,25 +1,10 @@
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#include <system_table.h>
-#include <terminal.h>
-#include <hang_up.h>
-#include <coreid.h>
+#include <init.h>
+#include <sched.h>
 
 __attribute__((noreturn))
-void main()
+void main(int block_nums, Memory_Block* blocks)
 {
-    init_gdts();
-    init_tsss();
-    init_idt();
-
-    reload_gdtr(get_coreid());
-    load_tr();
-    load_idtr();
-
-    tclear();
-    tputs("Hello world!");
-
+    *(char *)0xb8000='x';
+    //init(block_nums, blocks);
     hang_up();
 }

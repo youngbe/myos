@@ -1,3 +1,6 @@
+#include <stddef.h>
+#include <string.h>
+
 #include "MADT.h"
 #include "ioapic.h"
 

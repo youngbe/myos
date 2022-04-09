@@ -44,10 +44,19 @@
 
 .Lkernel_load_next_address:
     .long 0
-.Lkernel_start_esp:
+.Lheap_blocks_num:
     .long 0
 
 .Lheap_end:
+
+/*
+   0 - 0x7bff bootloader's heap and stack
+   0x7c00 - 0xffff bootloader
+   0x10000 - 0x1ffff blocks(解析后的memory_map)
+   0x20000 - 0x2ffff e820's memory_map(e820_entry)
+   0x20000 - 0x2ffff 页表(覆盖e820 memory_map)
+   0x30000 - 0x3ffff 加载内核临时存储区 and kernel's stack
+   */
 
     # 此处地址0x7c00，以下部分将会被加载到内存执行
     .section .text.entry_point
@@ -242,7 +251,6 @@ _start:
 
 .Lkernel_start_address:
     .quad 0
-
 .Ldata_memory_map_size:
     .long 0
 
@@ -396,21 +404,8 @@ _start:
     movl    $0x534d4150, %edx
     int     $0x15
     jnc     5b
-    call    .Lclear
-    popl    %edi
-    popw    %es
+    addw    $6, %sp
 6:
-    # 检测至少有一块常规内存，读取才能算成功
-    movl    .Ldata_memory_map_size, %ecx
-    testl   %ecx, %ecx
-    jz      .Lerror
-7:
-    subw    $25, %di
-    cmpl    $1, %es:16(%di)
-    je      8f
-    loopl   7b
-    jmp     .Lerror
-8:
     call    .Lclear
     // dectect memory complete
 
@@ -429,22 +424,45 @@ _start:
     cli
     enter_protected_mode
 
+    // return struct
+    subl    $16, %esp
+    movl    %esp, %eax
+
+    // blocks *
     pushl   $0x10000
+    // kernel_size
     pushl   0xfe00
+    shll    $9, (%esp)
+    // entrys_num
     pushl   .Ldata_memory_map_size
+    // entrys
     pushl   $0x20000
+    // return struct *
+    pushl   %eax
     call    handle_memory_map
+
+    // 清除栈中传入参数(entrys, entrys_num, kernel_size, blocks)
+    // return struct * 它已经帮我们清除了
     addl    $16, %esp
-    movl    %eax, .Lkernel_start_address
-    movl    %eax, .Lkernel_load_next_address
-    movl    %edx, .Lkernel_start_esp
+    // ret.status
+    movl    (%esp), %eax
+    // ret.kernel_load_adress
+    movl    4(%esp), %ebx
+    // blocks_num
+    movl    8(%esp), %ecx
+    addl    $16, %esp
+    pushl   %eax
+    movl    %ebx, .Lkernel_load_next_address
+    movl    %ebx, .Lkernel_start_address
+    movl    %ecx, .Lheap_blocks_num
 
     // 返回实模式
     exit_protected_mode
     sti
     call    .Lclear
-    cmpl    $0, .Lkernel_start_address
-    je      .Lerror
+    popl    %eax
+    testl   %eax, %eax
+    jnz     .Lerror
 
 
 
@@ -637,8 +655,12 @@ _start:
     movq    %rax, %ss
     movq    %rax, %ds
     movq    %rax, %es
-    movl    .Lkernel_start_esp, %esp
+    movq    $0x40000, %rsp
     xorq    %rdi, %rdi
     movq    $33, %rsi
     callq   map_keyboard_interrupt_to_vector
-    jmp     *.Lkernel_start_address
+    testq   %rax, %rax
+    jnz     error
+    movl    $0x10000, %edi
+    movl    .Lheap_blocks_num, %esi
+    jmpq    *.Lkernel_start_address
