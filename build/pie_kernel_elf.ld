@@ -47,6 +47,7 @@ SECTIONS
         /**(.gnu.linkonce.b.*)*/
         /**(COMMON) */
     }
+    __kernel_end = . ;
     .rela.dyn  ALIGN(48) :
     {
         __start_rela_dyn = . ;

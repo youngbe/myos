@@ -663,4 +663,4 @@ _start:
     jnz     error
     movl    $0x10000, %edi
     movl    .Lheap_blocks_num, %esi
-    jmpq    *.Lkernel_start_address
+    callq   *.Lkernel_start_address
