@@ -452,7 +452,7 @@ label2:
                     else
                     {
                         // 前面后面都没贴住
-                        Block *const new_free_block=free_content+size;
+                        Block *const new_free_block=new_content+size;
                         size_t const new_free_content=(size_t)new_free_block->content;
                         {
                             // alloc new_block to new_free_content-1
@@ -580,7 +580,7 @@ label_next:
                     prev_block->header.size=(size_t)new_block-(size_t)prev_block->content;
                     new_block->header.prev=prev_block;
                 }
-                new_block->size=header.size;
+                new_block->header.size=header.size;
             }
             else
             {
