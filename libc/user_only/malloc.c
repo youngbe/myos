@@ -373,11 +373,16 @@ void *malloc_p2align(size_t size, const size_t p2align)
             }
             if ( (size_t)insert_block <= free_content )
             {
+                size_t const page_start=REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) + PAGE_SIZE;
                 if ( next_block_t <= ifree_content )
                 {
+                    // alloc free_content to next_block_t-1
+                    alloc_pages_tool(page_start, REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE));
                 }
                 else
                 {
+                    // alloc free_content to ifree_content-1
+                    alloc_pages_tool(  );
                 }
             }
             else
