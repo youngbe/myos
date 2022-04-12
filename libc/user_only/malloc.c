@@ -7,19 +7,20 @@
 #include <bit.h>
 
 
-// malloc 对齐2的多少次方
+// malloc返回的地址至少对齐2的多少次方
+// 在 Linux x86_64 上是16==2^4
 #define _P2ALIGN ((size_t)4)
 
 // 页大小为2的多少次方
 #define PAGE_P2SIZE ((size_t)21)
 
-// malloc 对齐多少字节
+// malloc返回的地址至少对齐多少字节
 #define _ALIGN (((size_t)1)<<_P2ALIGN)
 
 // 页大小
 #define PAGE_SIZE (((size_t)1)<<PAGE_P2SIZE)
 
-// malloc 从 1TB 开始（虚拟地址）
+// 堆起始位置，含义见后文解释
 #define _BASE ((void *)0x10000000000)
 
 typedef struct Block_Header Block_Header;
@@ -43,17 +44,17 @@ static Block *last_block=NULL;
 static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
 
 /*
-数据结构说明：
-1. _BASE是堆开始的地方，_BASE必须>=PAGE_SIZE且对齐PAGE_SIZE
-2. 设堆的大小为size，则堆的范围为[_BASE, _BASE+size-1]，初始状态下堆大小为0。
-3. 堆中放的是一个一个块(Block)，紧凑堆放
-4. 每个块的结构为：
-struct
-{
-    // 块头
-    Block_Header header;
-    // 块内容（地址返回给程序）
-    uint8_t content[header.size];
+   数据结构说明：
+   1. _BASE(类型为void*)是堆的起始地址，_BASE必须对齐PAGE_SIZE和_ALIGN，且不等于0
+   2. 设堆的大小为size，则堆的范围为[_BASE, _BASE+size-1]，初始状态下堆大小为0。
+   3. 堆中放的是一个一个块(Block)，紧凑堆放
+   4. 每个块的结构为：
+   struct
+   {
+// 块头
+Block_Header header;
+// 块内容（地址返回给程序）
+uint8_t content[header.size];
 };
 5. 如果last_block为NULL，则代表堆大小为0，否则last_block指向堆的最后一个块
 6. 最后一个块的类型一定是已分配
@@ -61,6 +62,7 @@ struct
 8. free_blocks是一个连接起所有未分配块的链表
 */
 
+// 通过系统调用，申请/释放页表
 // 由操作系统内核提供这两个函数的实现
 ssize_t alloc_pages(void *base, size_t num);
 void free_pages(void *base, size_t num);
@@ -338,6 +340,10 @@ void *malloc_p2align(size_t size, const size_t p2align)
     }
     // size 向上取整对齐_P2ALIGN
     size=REMOVE_BITS_LOW(size-1, _P2ALIGN)+_ALIGN;
+    if ( size == 0 )
+    {
+        return NULL;
+    }
     // >= 2^48
     if ( REMOVE_BITS_LOW(size, 48) !=0 || p2align >= 48 )
     {
@@ -349,111 +355,146 @@ void *malloc_p2align(size_t size, const size_t p2align)
         Block *free_block;
         list_for_each_entry(free_block, &head_free_blocks, header.node_free_blocks)
         {
-            // prev_block free_block insert_block ifree_block next_block
+            // prev_block free_block new_block new_free_block next_block
             size_t const free_content=(size_t)free_block->content;
-            size_t const insert_content=REMOVE_BITS_LOW(free_content-1, p2align)+align;
-            Block *const insert_block=(Block *)(insert_content-offsetof(Block, content));
-            Block *const ifree_block= (Block *)(insert_content + size);
-            size_t const ifree_content=(size_t)ifree_block->content
             size_t const next_block_t=free_content+free_block->header.size;
-            Block *const prev_block=free_block->header.prev;
-            size_t const prev_content=(size_t)prev_block->content;
-            if ( next_block_t < ifree_block )
+            if ( free_block == _BASE )
             {
-                continue;
-            }
-            if ( (size_t)insert_block <= free_content )
-            {
-                size_t const page_start=REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) + PAGE_SIZE;
-                if ( next_block_t <= ifree_content )
+                size_t const new_content=REMOVE_BITS_LOW(next_block_t-size, p2align);
+                Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+                if ( (size_t)new_block < free_content && new_block != free_block )
                 {
-                    size=next_block_t-insert_content;
+                    continue;
+                }
+                ...;
+                return;
+            }
+
+            // 从后面贴
+            {
+                size_t const new_content=REMOVE_BITS_LOW(next_block_t-size, p2align);
+                if ( new_content < free_content )
+                {
+                    continue;
+                }
+                if ( new_content+size+offsetof(Block, content) < next_block_t )
+                {
+                    goto label_next;
+                }
+                // 贴住了
+                // alloc new_block to next_block-1
+                Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+                if ( (size_t)new_block <= free_content )
+                {
+                    // 同时也贴住了前面
                     // alloc free_content to next_block_t-1
-                    if ( alloc_pages_tool(page_start, REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                    if ( alloc_pages_tool(
+                                REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) + PAGE_SIZE,
+                                REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
                     {
                         return NULL;
                     }
-                    list_del(&free_block->node_free_blocks);
+                    list_del(&free_block->header.node_free_blocks);
+                    if ( new_block != free_block )
+                    {
+                        Block* prev_block=free_block->prev;
+                        prev_block->header.size=(size_t)new_block-(size_t)prev_block->content;
+                        new_block->header.size=next_block_t-new_content;
+                        new_block->header.prev=prev_block;
+                    }
                 }
                 else
                 {
-                    // alloc free_content to ifree_content-1
+                    // 没能贴住前面
                     {
-                        ssize_t ret;
-                        size_t const page_limit=REMOVE_BITS_LOW(ifree_content-1, PAGE_P2SIZE);
-                        if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                        size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
+                        if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
                         {
-                            ret=alloc_pages_tool(page_start, page_limit);
+                            page_start+=PAGE_SIZE;
                         }
-                        else
-                        {
-                            ret=alloc_pages_tool1(page_start, page_limit);
-                        }
-                        if ( ret != 0 )
+                        if ( alloc_page_tool(page_start,
+                                    REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
                         {
                             return NULL;
                         }
                     }
-                    list_replace(&free_block->node_free_blocks, &ifree_block->node_free_blocks);
-                    ifree_block->header.size=next_block_t-ifree_content;
-                    ifree_block->header.flag=0;
-                    ifree_block->prev=insert_block;
+                    free_block->header.size=(size_t)new_block-free_content;
+                    new_block->header.size=next_block_t-new_content;
+                    new_block->header.prev=free_block;
                 }
-                if ( insert_block != free_block )
+                new_block->header.flag=1;
+                return (void *)new_content;
+            }
+label_next:
+            // 从前面贴
+            size_t const new_content=REMOVE_BITS_LOW(free_content-1, p2align)+align;
+            Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+            Block *const new_free_block=(Block *)(new_content+size);
+            if ( (size_t)new_block <= free_content )
+            {
+                // 贴住了
+                // alloc free_content to new_free_content-1
                 {
-                    insert_block->header.size=size;
-                    insert_block->header.prev=prev_block;
-                    prev_block->header.size=(size_t)insert_block-prev_content;
+                    size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
+                    if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                    {
+                        if (alloc_pages_tool(REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit) != 0)
+                        {
+                            return NULL;
+                        }
+                    }
+                    else
+                    {
+                        if (alloc_pages_tool1(REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit) != 0 )
+                        {
+                            return NULL;
+                        }
+                    }
                 }
-                insert_block->header.flag=1;
-                return (void *)insert_content;
+                list_replace(&free_block->header.node_free_blocks, &new_free_block->header.node_free_blocks);
+                if ( free_block != new_block )
+                {
+                    Block *prev_block=free_block->header.prev;
+                    prev_block->header.size=(size_t)new_block-(size_t)prev_block->content;
+                    new_block->size=size;
+                    new_block->header.prev=prev_block;
+                }
             }
             else
             {
-                size_t page_start=REMOVE_BITS_LOW((size_t)insert_block, PAGE_P2SIZE);
-                if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                // alloc new_block to new_free_content-1
                 {
-                    page_start+=PAGE_SIZE;
-                }
-                if ( next_block_t <= ifree_content )
-                {
-                    size=next_block_t-insert_content;
-                    // alloc insert_block to next_block_t-1
-                    if ( alloc_pages_tool(page_start, REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                    size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
+                    if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
                     {
-                        return NULL;
+                        page_start+=PAGE_SIZE;
                     }
-                }
-                else
-                {
-                    // alloc insert_block to ifree_content-1
+                    size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
+                    if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
                     {
-                        ssize_t ret;
-                        size_t const page_limit=REMOVE_BITS_LOW(ifree_content-1, PAGE_P2SIZE);
-                        if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
-                        {
-                            ret=alloc_pages_tool(page_start, page_limit);
-                        }
-                        else
-                        {
-                            ret=alloc_pages_tool1(page_start, page_limit);
-                        }
-                        if ( ret != 0 )
+                        if (alloc_pages_tool(page_start, page_limit) != 0)
                         {
                             return NULL;
                         }
                     }
-                    list_add(&ifree_block->node_free_blocks, &head_free_blocks);
-                    ifree_block->header.size=next_block_t-ifree_content;
-                    ifree_block->header.flag=0;
-                    ifree_block->prev=insert_block;
+                    else
+                    {
+                        if (alloc_pages_tool1(page_start, page_limit) != 0 )
+                        {
+                            return NULL;
+                        }
+                    }
                 }
-                free_block->header.size=(size_t)insert_block-free_content;
-                insert_block->header.size=size;
-                insert_block->header.flag=1;
-                insert_block->header.prev=free_block;
-                return (void *)insert_content;
+                list_add(&new_free_block->header.node_free_blocks, &head_free_blocks);
+                free_block->header.size=(size_t)new_free_block-free_content;
+                new_block->header.size=size;
+                new_block->header.prev=free_block;
             }
+            new_block->header.flag=1;
+            new_free_block->header.size=next_block_t-(size_t)new_free_block->content;
+            new_free_block->header.flag=0;
+            new_free_block->header.prev=new_block;
+            return (void *)new_content;
         }
     }
 
