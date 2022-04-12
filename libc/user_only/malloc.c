@@ -378,9 +378,9 @@ void *malloc_p2align(size_t size, const size_t p2align)
                 else
                 {
                     // alloc free_content to ifree_content-1
-                    size_t const page_limit=REMOVE_BITS_LOW(ifree_content-1, PAGE_P2SIZE);
                     {
                         ssize_t ret;
+                        size_t const page_limit=REMOVE_BITS_LOW(ifree_content-1, PAGE_P2SIZE);
                         if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
                         {
                             ret=alloc_pages_tool(page_start, page_limit);
@@ -402,24 +402,57 @@ void *malloc_p2align(size_t size, const size_t p2align)
                 if ( insert_block != free_block )
                 {
                     insert_block->header.size=size;
-                    insert_block->header.flag=1;
                     insert_block->header.prev=prev_block;
                     prev_block->header.size=(size_t)insert_block-prev_content;
                 }
-                else
-                {
-                    free_block->flag=1;
-                }
+                insert_block->header.flag=1;
                 return (void *)insert_content;
             }
             else
             {
+                size_t page_start=REMOVE_BITS_LOW((size_t)insert_block, PAGE_P2SIZE);
+                if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                {
+                    page_start+=PAGE_SIZE;
+                }
                 if ( next_block_t <= ifree_content )
                 {
+                    size=next_block_t-insert_content;
+                    // alloc insert_block to next_block_t-1
+                    if ( alloc_pages_tool(page_start, REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                    {
+                        return NULL;
+                    }
                 }
                 else
                 {
+                    // alloc insert_block to ifree_content-1
+                    {
+                        ssize_t ret;
+                        size_t const page_limit=REMOVE_BITS_LOW(ifree_content-1, PAGE_P2SIZE);
+                        if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                        {
+                            ret=alloc_pages_tool(page_start, page_limit);
+                        }
+                        else
+                        {
+                            ret=alloc_pages_tool1(page_start, page_limit);
+                        }
+                        if ( ret != 0 )
+                        {
+                            return NULL;
+                        }
+                    }
+                    list_add(&ifree_block->node_free_blocks, &head_free_blocks);
+                    ifree_block->header.size=next_block_t-ifree_content;
+                    ifree_block->header.flag=0;
+                    ifree_block->prev=insert_block;
                 }
+                free_block->header.size=(size_t)insert_block-free_content;
+                insert_block->header.size=size;
+                insert_block->header.flag=1;
+                insert_block->header.prev=free_block;
+                return (void *)insert_content;
             }
         }
     }
