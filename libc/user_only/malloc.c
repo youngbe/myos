@@ -362,12 +362,132 @@ void *malloc_p2align(size_t size, const size_t p2align)
             {
                 size_t const new_content=REMOVE_BITS_LOW(next_block_t-size, p2align);
                 Block *const new_block=(Block *)(new_content-offsetof(Block, content));
-                if ( (size_t)new_block < free_content && new_block != free_block )
+                if ( (size_t)new_block < free_content)
                 {
-                    continue;
+                    if ( new_block != free_block )
+                    {
+                        continue;
+                    }
+                    if ( new_content+size+offsetof(Block, content) >= next_block_t )
+                    {
+                        goto label1;
+                    }
+                    else
+                    {
+                        goto label2;
+                    }
                 }
-                ...;
-                return;
+                if ( new_content+size+offsetof(Block, content) >= next_block_t )
+                {
+                    // 后面贴住
+                    if ( new_block == free_block )
+                    {
+label1:
+                        // 前面后面都贴住了
+                        // alloc free_content to next_block_t-1
+                        if (alloc_pages_tool(
+                                REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE,
+                                REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0)
+                        {
+                            return NULL;
+                        }
+                        list_del(&free_block->node_free_blocks);
+                    }
+                    else
+                    {
+                        // 前面没贴住，后面贴住了
+                        {
+                            // alloc new_block to next_block_t-1
+                            size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
+                            if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                            {
+                                page_start+=PAGE_SIZE;
+                            }
+                            if ( alloc_pages_tool(page_start,
+                                        REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                            {
+                                return NULL;
+                            }
+                        }
+                        free_block->header.size=(size_t)new_block-free_content;
+                        new_block->header.size=next_block_t-new_content;
+                        new_block->header.prev=free_block;
+                    }
+                    new_block->header.flag=1;
+                    return (void*)new_content;
+                }
+                else
+                {
+                    if ( GET_BITS_LOW(free_content, p2align) == 0 )
+                    {
+label2:
+                        // 后面没贴住，前面贴住了
+                        Block *const new_free_block=free_content+size;
+                        size_t const new_free_content=(size_t)new_free_block->content;
+                        {
+                            size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
+                            if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                            {
+                                if ( alloc_pages_tool( REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit ) != 0 )
+                                {
+                                    return NULL;
+                                }
+                            }
+                            else
+                            {
+                                if ( alloc_pages_tool1( REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit ) != 0 )
+                                {
+                                    return NULL;
+                                }
+                            }
+                        }
+                        list_replace(&free_block->header.node_free_blocks, &new_free_block->header.node_free_blocks);
+                        free_block->header.size=size;
+                        free_block->header.flag=1;
+                        new_free_block->header.size=next_block_t-new_free_content;
+                        new_free_block->header.flag=0;
+                        new_free_block->header.prev=free_block;
+                        return (void *)free_content;
+                    }
+                    else
+                    {
+                        // 前面后面都没贴住
+                        Block *const new_free_block=free_content+size;
+                        size_t const new_free_content=(size_t)new_free_block->content;
+                        {
+                            // alloc new_block to new_free_content-1
+                            size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
+                            if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                            {
+                                page_start+=PAGE_SIZE;
+                            }
+                            size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
+                            if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                            {
+                                if ( alloc_pages_tool(page_start, page_limit) != 0 )
+                                {
+                                    return NULL;
+                                }
+                            }
+                            else
+                            {
+                                if ( alloc_pages_tool1(page_start, page_limit) != 0 )
+                                {
+                                    return NULL;
+                                }
+                            }
+                        }
+                        list_add(&new_free_block->header.node_free_blocks, &head_free_blocks);
+                        free_block->header.size=(size_t)new_block-free_content;
+                        new_block->header.size=size;
+                        new_block->header.flag=1;
+                        new_block->header.prev=free_block;
+                        new_free_block->header.size=next_block_t-new_free_content;
+                        new_free_block->header.flag=0;
+                        new_free_block->header.prev=new_block;
+                        return (void*)new_content;
+                    }
+                }
             }
 
             // 从后面贴
@@ -379,6 +499,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
                 }
                 if ( new_content+size+offsetof(Block, content) < next_block_t )
                 {
+                    // 没贴住
                     goto label_next;
                 }
                 // 贴住了
@@ -412,7 +533,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
                         {
                             page_start+=PAGE_SIZE;
                         }
-                        if ( alloc_page_tool(page_start,
+                        if ( alloc_pages_tool(page_start,
                                     REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
                         {
                             return NULL;
@@ -430,6 +551,7 @@ label_next:
             size_t const new_content=REMOVE_BITS_LOW(free_content-1, p2align)+align;
             Block *const new_block=(Block *)(new_content-offsetof(Block, content));
             Block *const new_free_block=(Block *)(new_content+size);
+            size_t const new_free_content=(size_t)new_free_block->content;
             if ( (size_t)new_block <= free_content )
             {
                 // 贴住了
@@ -486,12 +608,12 @@ label_next:
                     }
                 }
                 list_add(&new_free_block->header.node_free_blocks, &head_free_blocks);
-                free_block->header.size=(size_t)new_free_block-free_content;
+                free_block->header.size=(size_t)new_block-free_content;
                 new_block->header.size=size;
                 new_block->header.prev=free_block;
             }
             new_block->header.flag=1;
-            new_free_block->header.size=next_block_t-(size_t)new_free_block->content;
+            new_free_block->header.size=next_block_t-new_free_content;
             new_free_block->header.flag=0;
             new_free_block->header.prev=new_block;
             return (void *)new_content;
