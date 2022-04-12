@@ -625,15 +625,34 @@ label_next:
     // 内存里目前一块都没有，从_BASE开始申请新的页表
     if ( last_block == NULL )
     {
-        if ( alloc_pages(_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
+        if ( GET_BITS_LOW((size_t)_BASE+offsetof(Block, content), p2align) == 0 )
         {
-            return NULL;
+            if ( alloc_pages(_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
+            {
+                return NULL;
+            }
+            last_block=(Block *)_BASE;
+            last_block->header.size=size;
+            last_block->header.flag=1;
+            return (void *)last_block->content;
         }
-        last_block=(Block *)_BASE;
-        last_block->header.size=size;
-        last_block->header.flag=1;
-        //last_block->prev=NULL;
-        return (void *)last_block->content;
+        else
+        {
+            size_t const new_content=REMOVE_BITS_LOW((size_t)_BASE+(size_t)offsetof(Block, content)*2-1, p2align)+align;
+            if ( alloc_pages(_BASE, ((size+new_content-(size_t)_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
+            {
+                return NULL;
+            }
+            Block *const new_block=(Block*)(new_content-offsetof(Block, content));
+            list_add(&last_block->header.node_free_blocks, &head_fee_blocks);
+            last_block=(Block *)_BASE;
+            last_block->header.size=(size_t)new_block-(size_t)last_block->content;
+            last_block->header.flag=0;
+            new_block->header.size=size;
+            new_block->header.flag=1;
+            new_block->header.prev=last_block;
+            return (void *)new_content;
+        }
     }
     // 在堆结尾创建新的块
     else
