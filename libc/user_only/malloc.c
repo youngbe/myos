@@ -391,7 +391,7 @@ label1:
                         {
                             return NULL;
                         }
-                        list_del(&free_block->node_free_blocks);
+                        list_del(&free_block->header.node_free_blocks);
                     }
                     else
                     {
@@ -578,9 +578,9 @@ label_next:
                 {
                     Block *prev_block=free_block->header.prev;
                     prev_block->header.size=(size_t)new_block-(size_t)prev_block->content;
-                    new_block->size=size;
                     new_block->header.prev=prev_block;
                 }
+                new_block->size=header.size;
             }
             else
             {
