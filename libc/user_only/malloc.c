@@ -358,49 +358,36 @@ void *malloc_p2align(size_t size, const size_t p2align)
         Block *free_block;
         list_for_each_entry(free_block, &head_free_blocks, header.node_free_blocks)
         {
-            size_t align_start=REMOVE_BITS_LOW(free_block->content, p2align)+align;
-            if ( free_block->header.size<size )
+            // prev_block free_block insert_block ifree_block next_block
+            size_t const free_content=(size_t)free_block->content;
+            size_t const insert_content=REMOVE_BITS_LOW(free_content-1, p2align)+align;
+            Block *const insert_block=(Block *)(insert_content-offsetof(Block, content));
+            Block *const ifree_block= (Block *)(insert_content + size);
+            size_t const ifree_content=(size_t)ifree_block->content
+            size_t const next_block_t=free_content+free_block->header.size;
+            Block *const prev_block=free_block->header.prev;
+            size_t const prev_content=(size_t)prev_block->content;
+            if ( next_block_t < ifree_block )
             {
                 continue;
             }
-            size_t const next_block_t=(size_t)&free_block->content[free_block->header.size];
-            if ( free_block->header.size <= size+offsetof(Block, content) )
+            if ( (size_t)insert_block <= free_content )
             {
-                // free aera : free_block->content[ 0 to (free_block->header.size-1) ]
-                if (
-                        alloc_pages_tool(
-                            REMOVE_BITS_LOW( (size_t)free_block->content-1 , PAGE_P2SIZE) + PAGE_SIZE,
-                            REMOVE_BITS_LOW( next_block_t , PAGE_P2SIZE)
-                            ) != 0 )
+                if ( next_block_t <= ifree_content )
                 {
-                    return NULL;
                 }
-                free_block->header.flag=1;
-                list_del(&free_block->header.node_free_blocks);
-                return (void *)free_block->content;
+                else
+                {
+                }
             }
             else
             {
-                // 增加块 new_block
-                size_t const new_start_t=next_block_t-size;
-                Block *const new_block=(Block*)(new_start_t-offsetof(Block, content));
+                if ( next_block_t <= ifree_content )
                 {
-                    size_t temp_page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-                    if ( temp_page_start == REMOVE_BITS_LOW((size_t)free_block->content-1, PAGE_P2SIZE) )
-                    {
-                        temp_page_start+=PAGE_SIZE;
-                    }
-                    if ( alloc_pages_tool(temp_page_start, REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
-                    {
-                        return NULL;
-                    }
                 }
-
-                free_block->header.size=(size_t)new_block-(size_t)free_block->content;
-                new_block->header.size=size;
-                new_block->header.flag=1;
-                new_block->header.prev=free_block;
-                return (void *)new_start_t;
+                else
+                {
+                }
             }
         }
     }
