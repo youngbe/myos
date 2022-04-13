@@ -69,6 +69,7 @@ void free_pages(void *base, size_t num);
 
 static inline ssize_t alloc_pages_tool( size_t page_start, size_t page_end );
 static inline ssize_t alloc_pages_tool1( size_t page_start, size_t page_limit );
+static inline ssize_t alloc_pages_tool1_( size_t page_start, size_t page_limit );
 static inline void free_pages_tool( size_t page_start, size_t page_end );
 static inline void free_pages_tool1( size_t page_start, size_t page_limit );
 static inline void free_pages_tool1_( size_t page_start, size_t page_limit );
@@ -208,27 +209,19 @@ void free(void *base)
             // free del prev.header
             list_del(&prev_block->header.node_free_blocks);
             last_block=prev_block->header.prev;
-            size_t free_page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
-            size_t const prev_header_page=REMOVE_BITS_LOW((size_t)prev_block->content-1, PAGE_P2SIZE);
-            if ( GET_BITS_LOW((size_t)prev_block->content-1, PAGE_P2SIZE) < offsetof(Block, content) )
+            size_t const page_start0=REMOVE_BITS_LOW((size_t)prev_block-1, PAGE_P2SIZE)+PAGE_SIZE;
+            size_t const page_limit0=REMOVE_BITS_LOW((size_t)prev_block->content-1, PAGE_P2SIZE);
+            size_t const page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
+            size_t const page_limit=REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE);
+            if ( page_start - page_limit0 > PAGE_SIZE )
             {
-                if ( free_page_start - prev_header_page <= PAGE_SIZE )
-                {
-                    free_pages_tool1(prev_header_page, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
-                }
-                else
-                {
-                    free_pages((void *)prev_header_page, 1);
-                    free_pages_tool1(free_page_start, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
-                }
+                // 有空隙
+                free_pages_tool1(page_start0, page_limit0);
+                free_pages_tool1_(page_start, page_limit);
             }
             else
             {
-                if ( free_page_start == prev_header_page )
-                {
-                    free_page_start+=PAGE_SIZE;
-                }
-                free_pages_tool1(free_page_start, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
+                free_pages_tool1(page_start0, page_limit);
             }
         }
         else
@@ -682,7 +675,7 @@ label_next:
             {
                 return NULL;
             }
-            if ( alloc_pages_tool1( page_start, page_limit ) != 0 )
+            if ( alloc_pages_tool1_( page_start, page_limit ) != 0 )
             {
                 free_pages_tool1(page_start0, page_limit0);
                 return NULL;
@@ -735,6 +728,11 @@ inline ssize_t alloc_pages_tool1( size_t page_start, size_t page_limit )
         return alloc_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
     }
     return 0;
+}
+
+inline ssize_t alloc_pages_tool1_( size_t page_start, size_t page_limit )
+{
+    return alloc_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
 }
 
 inline void free_pages_tool( size_t page_start, size_t page_end )
