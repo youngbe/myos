@@ -71,6 +71,7 @@ static inline ssize_t alloc_pages_tool( size_t page_start, size_t page_end );
 static inline ssize_t alloc_pages_tool1( size_t page_start, size_t page_limit );
 static inline void free_pages_tool( size_t page_start, size_t page_end );
 static inline void free_pages_tool1( size_t page_start, size_t page_limit );
+static inline void free_pages_tool1_( size_t page_start, size_t page_limit );
 
 void *malloc(size_t size)
 {
@@ -188,7 +189,17 @@ void free(void *base)
             if ( prev_block == _BASE)
             {
                 // 没有更多的块了，清空堆
-                free_pages(_BASE, ( ((size_t)&del_block->content[del_block->header.size-1]-(size_t)_BASE) >> PAGE_P2SIZE)+1);
+                size_t const page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
+                if ( page_start - (size_t)_BASE > PAGE_SIZE )
+                {
+                    // 有空隙
+                    free_pages_tool1_(page_start, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
+                    free_pages(_BASE, (((size_t)offsetof(Block, content)-1)>>PAGE_P2SIZE) +1);
+                }
+                else
+                {
+                    free_pages(_BASE, ( ((size_t)&del_block->content[del_block->header.size-1]-(size_t)_BASE) >> PAGE_P2SIZE)+1);
+                }
                 head_free_blocks.prev=head_free_blocks.next=&head_free_blocks;
                 last_block=NULL;
                 return;
@@ -655,22 +666,57 @@ label_next:
         }
     }
     // 在堆结尾创建新的块
+    Block *const free_block=(Block*)&last_block->content[last_block->header.size];
+    size_t const free_content=(size_t)free_block->content;
+    size_t const new_content=REMOVE_BITS_LOW( free_content-1, p2align ) + align;
+    Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+    {
+        size_t const page_start0=REMOVE_BITS_LOW(free_block-1, PAGE_P2SIZE)+PAGE_SIZE;
+        size_t const page_limit0=REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE);
+        size_t const page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
+        size_t const page_limit=REMOVE_BITS_LOW(new_content+size-1, PAGE_P2SIZE);
+        if ( page_start - page_limit0 > PAGE_SIZE )
+        {
+            // 有空隙
+            if ( alloc_pages_tool1( page_start0, page_limit0 ) != 0 )
+            {
+                return NULL;
+            }
+            if ( alloc_pages_tool1( page_start, page_limit ) != 0 )
+            {
+                free_pages_tool1(page_start0, page_limit0);
+                return NULL;
+            }
+        }
+        else
+        {
+            if ( alloc_pages_tool1(page_start0, page_limit) != 0 )
+            {
+                return NULL;
+            }
+        }
+    }
+    new_block->header.size=size;
+    new_block->header.flag=1;
+    if ( (size_t)new_block <= free_content )
+    {
+        // 贴住了
+        if ( new_block != free_block )
+        {
+            last_block->header.size=(size_t)new_block-(size_t)last_block->content;
+        }
+        new_block->header.prev=last_block;
+    }
     else
     {
-        Block *const new_block=(Block*)&last_block->content[last_block->header.size];
-        if ( alloc_pages_tool1(
-                    REMOVE_BITS_LOW((size_t)new_block-1, PAGE_P2SIZE)+PAGE_SIZE,
-                    REMOVE_BITS_LOW((size_t)&new_block->content[size]-1, PAGE_P2SIZE)
-                    ) != 0 )
-        {
-            return NULL;
-        }
-        new_block->header.size=size;
-        new_block->header.flag=1;
-        new_block->header.prev=last_block;
-        last_block=new_block;
-        return (void *)new_block->content;
+        free_block->header.size=(size_t)new_block-free_content;
+        free_block->header.flag=0;
+        free_block->header.prev=last_block;
+        new_block->header.prev=free_block;
+        list_add(&free_block->header.node_free_blocks, &head_free_blocks);
     }
+    last_block=new_block;
+    return (void *)new_content;
 }
 
 inline ssize_t alloc_pages_tool( size_t page_start, size_t page_end )
@@ -705,4 +751,9 @@ inline void free_pages_tool1( size_t page_start, size_t page_limit )
     {
         free_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
     }
+}
+
+inline void free_pages_tool1_( size_t page_start, size_t page_limit )
+{
+    free_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
 }
