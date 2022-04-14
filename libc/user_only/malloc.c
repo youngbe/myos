@@ -292,8 +292,8 @@ void free(void *base)
     Block *const prev_block=del_block->header.prev;
     if ( prev_block->header.flag == 0 )
     {
-        size_t free_page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
-        if ( free_page_start == REMOVE_BITS_LOW((size_t)prev_block->content-1, PAGE_P2SIZE) )
+        size_t page_start=ALIGN_PAGE((size_t)del_block);
+        if ( page_start == ALIGN_PAGE((size_t)prev_block->content-1) )
         {
             free_page_start+=PAGE_SIZE;
         }
@@ -304,14 +304,14 @@ void free(void *base)
             size_t const next_next_block_t=(size_t)&next_block->content[next_block->header.size];
             prev_block->header.size=next_next_block_t-(size_t)prev_block->content;
             list_del(&next_block->header.node_free_blocks);
-            size_t const free_page_limit=REMOVE_BITS_LOW((size_t)next_block->content-1, PAGE_P2SIZE);
-            if ( free_page_limit == REMOVE_BITS_LOW(next_next_block_t, PAGE_P2SIZE) )
+            size_t const page_limit=ALIGN_PAGE((size_t)next_block->content-1);
+            if ( page_limit == ALIGN_PAGE(next_next_block_t) )
             {
-                free_pages_tool(free_page_start, free_page_limit);
+                free_pages_tool(page_start, page_limit);
             }
             else
             {
-                free_pages_tool1(free_page_start, free_page_limit);
+                free_pages_tool1(page_start, page_limit);
             }
         }
         else
@@ -319,7 +319,7 @@ void free(void *base)
             // 删除del 块
             // free del
             prev_block->header.size=(size_t)next_block-(size_t)prev_block->content;
-            free_pages_tool(free_page_start, REMOVE_BITS_LOW((size_t)next_block, PAGE_P2SIZE));
+            free_pages_tool(page_start, ALIGN_PAGE((size_t)next_block));
         }
     }
     else
@@ -332,24 +332,21 @@ void free(void *base)
             list_replace(&next_block->header.node_free_blocks, &del_block->header.node_free_blocks);
             size_t const next_next_block_t=(size_t)&next_block->content[next_block->header.size];
             del_block->header.size=next_next_block_t-(size_t)del_block->content;
-            size_t const free_pages_limit=REMOVE_BITS_LOW((size_t)next_block->content-1, PAGE_P2SIZE);
-            if ( free_pages_limit == REMOVE_BITS_LOW(next_next_block_t, PAGE_P2SIZE) )
+            size_t const page_limit=ALIGN_PAGE((size_t)next_block->content-1);
+            if ( page_limit == ALIGN_PAGE(next_next_block_t) )
             {
-                free_pages_tool(REMOVE_BITS_LOW((size_t)del_block->content-1, PAGE_P2SIZE)+PAGE_SIZE, free_pages_limit);
+                free_pages_tool(UP_ALIGN_PAGE((size_t)del_block->content), page_limit);
             }
             else
             {
-                free_pages_tool1(REMOVE_BITS_LOW((size_t)del_block->content-1, PAGE_P2SIZE)+PAGE_SIZE, free_pages_limit);
+                free_pages_tool1(UP_ALIGN_PAGE((size_t)del_block->content), page_limit);
             }
         }
         else
         {
             // free del.content
             list_add(&del_block->header.node_free_blocks, &head_free_blocks);
-            free_pages_tool(
-                    REMOVE_BITS_LOW((size_t)del_block->content-1, PAGE_P2SIZE)+PAGE_SIZE,
-                    REMOVE_BITS_LOW((size_t)next_block, PAGE_P2SIZE)
-                    );
+            free_pages_tool(UP_ALIGN_PAGE((size_t)del_block->content), ALIGN_PAGE((size_t)next_block));
         }
     }
 }
