@@ -40,23 +40,24 @@ static Block *last_block=NULL;
 static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
 
 /*
-   数据结构说明：
-   1. _BASE(类型为void*)是堆的起始地址，_BASE必须对齐PAGE_SIZE和_ALIGN，且不等于0
-   2. 设堆的大小为size，则堆的范围为[_BASE, _BASE+size-1]，初始状态下堆大小为0。
-   3. 堆中放的是一个一个块(Block)，紧凑堆放
-   4. 每个块的结构为：
-   struct
-   {
-// 块头
-Block_Header header;
-// 块内容（地址返回给程序）
-uint8_t content[header.size];
-};
-5. 如果last_block为NULL，则代表堆大小为0，否则last_block指向堆的最后一个块
-6. 最后一个块的类型一定是已分配
-7. 不可能存在两个连续的未分配的块（两个连续的未分配块将会合并为一个块）
-8. free_blocks是一个连接起所有未分配块的链表
-*/
+ * 数据结构说明：
+ * 1. _BASE(类型为size_t)是堆的起始地址，_BASE必须对齐PAGE_SIZE和MALLOC_ALIGN，且不等于0
+ * 2. 设堆的大小为size，则堆的范围为[_BASE, _BASE+size-1]，初始状态下堆大小为0
+ * 3. 
+ * 4. 堆中放的是一个一个块(Block)，紧凑堆放
+ * 5. 每个块的结构为：
+ * struct
+ * {
+ * // 块头
+ * Block_Header header;
+ * // 块内容（地址返回给程序）
+ * uint8_t content[header.size];
+ * };
+ * 6. 如果last_block为NULL，则代表堆大小为0，否则last_block指向堆的最后一个块
+ * 7. 最后一个块的类型一定是已分配
+ * 8. 不可能存在两个连续的未分配的块（两个连续的未分配块将会合并为一个块）
+ * 9. free_blocks是一个连接起所有未分配块的链表
+ */
 
 // 通过系统调用，申请/释放页表
 // 由操作系统内核提供这两个函数的实现
@@ -68,7 +69,7 @@ void free_pages(void *base, size_t num);
 
 #define P2ALIGN(x, p2align) REMOVE_BITS_LOW((x), (p2align))
 #define UP_P2ALIGN(x, p2align) (REMOVE_BITS_LOW((x)-1, (p2align)) + (((size_t)1)<<(p2align)))
-#define ALIGN_PAGE(x) P2ALIGN(x, PAGE_P2SIZE)
+#define ALIGN_PAGE(x) P2ALIGN((x), PAGE_P2SIZE)
 #define UP_ALIGN_PAGE(x) (ALIGN_PAGE((x)-1) + PAGE_SIZE)
 #define ALIGN_MALLOC(x) P2ALIGN((x), MALLOC_P2ALIGN)
 #define UP_ALIGN_MALLOC(x) (ALIGN_MALLOC((x)-1)+MALLOC_ALIGN)
@@ -173,7 +174,7 @@ void *malloc(size_t size)
         {
             return NULL;
         }
-        if ( _LIMIT - (size_t)&last_block->content[last_block->header.size-1] - size < offsetof(Block, content) - 1 )
+        if ( _LIMIT - (size_t)&last_block->content[last_block->header.size-1] - size < offsetof(Block, content) )
         {
             return NULL;
         }
