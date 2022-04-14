@@ -371,7 +371,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
     {
         return NULL;
     }
-    const size_t align=((size_t)1)<<p2align;
+    size_t const align=((size_t)1)<<p2align;
     // 先遍历一遍空闲块，看是否有合适的
     {
         Block *free_block;
@@ -387,6 +387,10 @@ void *malloc_p2align(size_t size, const size_t p2align)
             if ( (size_t)free_block == _BASE )
             {
                 size_t const new_content=P2ALGN(next_block_t-size, p2align);
+                if ( new_content < free_content )
+                {
+                    continue;
+                }
                 Block *const new_block=(Block *)(new_content-offsetof(Block, content));
                 if ( (size_t)new_block < free_content)
                 {
@@ -568,7 +572,7 @@ label2:
             }
 label_next:
             // 从前面贴
-            size_t const new_content=P2ALIGN(free_content-1, p2align)+align;
+            size_t const new_content=UP_P2ALIGN(free_content, p2align);
             Block *const new_block=(Block *)(new_content-offsetof(Block, content));
             Block *const new_free_block=(Block *)(new_content+size);
             size_t const new_free_content=(size_t)new_free_block->content;
@@ -647,6 +651,14 @@ label_next:
     {
         if ( GET_BITS_LOW(_BASE+offsetof(Block, content), p2align) == 0 )
         {
+            if ( size >= _LIMIT - _BASE )
+            {
+                return NULL;
+            }
+            if ( _LIMIT - _BASE - size < offsetof(Block, content) - 1 )
+            {
+                return NULL;
+            }
             if ( alloc_pages((void*)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
                 return NULL;
@@ -658,8 +670,21 @@ label_next:
         }
         else
         {
-            size_t const new_content=REMOVE_BITS_LOW(_BASE+(size_t)offsetof(Block, content)*2-1, p2align)+align;
-            if ( alloc_pages(_BASE, ((size+new_content-_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
+            if ( (size_t)offsetof(Block, content)*2 > _LIMIT - _BASE )
+            {
+                return NULL;
+            }
+            size_t new_content=P2ALIGN(_BASE+(size_t)offsetof(Block, content)*2-1, p2align);
+            if ( _LIMIT - new_content < align )
+            {
+                return NULL;
+            }
+            new_content+=align;
+            if ( _LIMIT - new_content < size - 1 )
+            {
+                return NULL;
+            }
+            if ( alloc_pages((void*)_BASE, ((size+new_content-_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
                 return NULL;
             }
@@ -675,15 +700,28 @@ label_next:
         }
     }
     // 在堆结尾创建新的块
+    if ( _LIMIT - (size_t)&last_block->content[last_block->header.size-1] <= offsetof(Block, content) )
+    {
+        return NULL;
+    }
     Block *const free_block=(Block*)&last_block->content[last_block->header.size];
     size_t const free_content=(size_t)free_block->content;
-    size_t const new_content=REMOVE_BITS_LOW( free_content-1, p2align ) + align;
+    size_t new_content=P2ALIGN( free_content-1, p2align );
+    if ( _LIMIT - new_content < align )
+    {
+        return NULL;
+    }
+    new_content+=align;
+    if ( _LIMIT - new_content < size - 1 )
+    {
+        return NULL;
+    }
     Block *const new_block=(Block *)(new_content-offsetof(Block, content));
     {
-        size_t const page_start0=REMOVE_BITS_LOW(free_block-1, PAGE_P2SIZE)+PAGE_SIZE;
-        size_t const page_limit0=REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE);
-        size_t const page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-        size_t const page_limit=REMOVE_BITS_LOW(new_content+size-1, PAGE_P2SIZE);
+        size_t const page_start0=UP_ALIGN_PAGE(free_block);
+        size_t const page_limit0=ALIGN_PAGE(free_content-1);
+        size_t const page_start=ALIGN_PAGE((size_t)new_block);
+        size_t const page_limit=ALIGN_PAGE(new_content+size-1);
         if ( page_start - page_limit0 > PAGE_SIZE )
         {
             // 有空隙
