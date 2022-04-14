@@ -515,7 +515,7 @@ label2:
 
             // 从后面贴
             {
-                size_t const new_content=REMOVE_BITS_LOW(next_block_t-size, p2align);
+                size_t const new_content=P2ALIGN(next_block_t-size, p2align);
                 if ( new_content < free_content )
                 {
                     continue;
@@ -532,9 +532,7 @@ label2:
                 {
                     // 同时也贴住了前面
                     // alloc free_content to next_block_t-1
-                    if ( alloc_pages_tool(
-                                REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) + PAGE_SIZE,
-                                REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                    if ( alloc_pages_tool(UP_ALIGN_PAGE(free_content), ALIGN_PAGE(next_block_t)) != 0 )
                     {
                         return NULL;
                     }
@@ -551,13 +549,12 @@ label2:
                 {
                     // 没能贴住前面
                     {
-                        size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-                        if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                        size_t page_start=ALIGN_PAGE((size_t)new_block);
+                        if ( page_start == ALIGN_PAGE(free_content-1) )
                         {
                             page_start+=PAGE_SIZE;
                         }
-                        if ( alloc_pages_tool(page_start,
-                                    REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                        if ( alloc_pages_tool(page_start, ALIGN_PAGE(next_block_t)) != 0 )
                         {
                             return NULL;
                         }
@@ -571,7 +568,7 @@ label2:
             }
 label_next:
             // 从前面贴
-            size_t const new_content=REMOVE_BITS_LOW(free_content-1, p2align)+align;
+            size_t const new_content=P2ALIGN(free_content-1, p2align)+align;
             Block *const new_block=(Block *)(new_content-offsetof(Block, content));
             Block *const new_free_block=(Block *)(new_content+size);
             size_t const new_free_content=(size_t)new_free_block->content;
@@ -580,17 +577,17 @@ label_next:
                 // 贴住了
                 // alloc free_content to new_free_content-1
                 {
-                    size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
-                    if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                    size_t const page_limit=ALIGN_PAGE(new_free_content-1);
+                    if ( page_limit == ALIGN_PAGE(next_block_t) )
                     {
-                        if (alloc_pages_tool(REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit) != 0)
+                        if (alloc_pages_tool(UP_ALIGN_PAGE(free_content), page_limit) != 0)
                         {
                             return NULL;
                         }
                     }
                     else
                     {
-                        if (alloc_pages_tool1(REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit) != 0 )
+                        if (alloc_pages_tool1(UP_ALIGN_PAGE(free_content), page_limit) != 0 )
                         {
                             return NULL;
                         }
@@ -609,13 +606,13 @@ label_next:
             {
                 // alloc new_block to new_free_content-1
                 {
-                    size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-                    if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                    size_t page_start=ALIGN_PAGE((size_t)new_block);
+                    if ( page_start == ALIGN_PAGE(free_content-1) )
                     {
                         page_start+=PAGE_SIZE;
                     }
-                    size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
-                    if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                    size_t const page_limit=ALIGN_PAGE(new_free_content-1);
+                    if ( page_limit == ALIGN_PAGE(next_block_t) )
                     {
                         if (alloc_pages_tool(page_start, page_limit) != 0)
                         {
