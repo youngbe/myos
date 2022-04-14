@@ -212,11 +212,11 @@ void free(void *base)
             if ( (size_t)prev_block == _BASE)
             {
                 // 没有更多的块了，清空堆
-                size_t const page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
+                size_t const page_start=ALIGN_PAGE((size_t)del_block);
                 if ( page_start - _BASE > PAGE_SIZE )
                 {
                     // 有空隙
-                    free_pages_tool1_(page_start, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
+                    free_pages_tool1_(page_start, ALIGN_PAGE((size_t)&del_block->content[del_block->header.size-1]);
                     free_pages((void*)_BASE, (((size_t)offsetof(Block, content)-1)>>PAGE_P2SIZE) +1);
                 }
                 else
@@ -231,10 +231,10 @@ void free(void *base)
             // free del prev.header
             list_del(&prev_block->header.node_free_blocks);
             last_block=prev_block->header.prev;
-            size_t const page_start0=REMOVE_BITS_LOW((size_t)prev_block-1, PAGE_P2SIZE)+PAGE_SIZE;
-            size_t const page_limit0=REMOVE_BITS_LOW((size_t)prev_block->content-1, PAGE_P2SIZE);
-            size_t const page_start=REMOVE_BITS_LOW((size_t)del_block, PAGE_P2SIZE);
-            size_t const page_limit=REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE);
+            size_t const page_start0=UP_ALIGN_PAGE((size_t)prev_block);
+            size_t const page_limit0=ALIGN_PAGE((size_t)prev_block->content-1);
+            size_t const page_start=ALIGN_PAGE((size_t)del_block);
+            size_t const page_limit=ALIGN_PAGE((size_t)&del_block->content[del_block->header.size-1]);
             if ( page_start - page_limit0 > PAGE_SIZE )
             {
                 // 有空隙
@@ -251,7 +251,7 @@ void free(void *base)
             // 删除del 块
             // free del
             last_block=prev_block;
-            free_pages_tool1(REMOVE_BITS_LOW((size_t)del_block-1, PAGE_P2SIZE)+PAGE_SIZE, REMOVE_BITS_LOW((size_t)&del_block->content[del_block->header.size-1], PAGE_P2SIZE));
+            free_pages_tool1(UP_ALIGN_PAGE((size_t)del_block), ALIGN_PAGE((size_t)&del_block->content[del_block->header.size-1]));
         }
         return;
     }
@@ -270,21 +270,21 @@ void free(void *base)
             size_t const next_next_block_t=(size_t)&next_block->content[next_block->header.size];
             del_block->header.size=next_next_block_t-(size_t)del_block->content;
             list_replace(&next_block->header.node_free_blocks, &del_block->header.node_free_blocks);
-            size_t free_page_limit=REMOVE_BITS_LOW((size_t)next_block->content-1, PAGE_P2SIZE);
-            if ( free_page_limit == REMOVE_BITS_LOW(next_next_block_t, PAGE_P2SIZE) )
+            size_t const page_limit=ALIGN_PAGE((size_t)next_block->content-1);
+            if ( page_limit == ALIGN_PAGE(next_next_block_t) )
             {
-                free_pages_tool(_BASE+PAGE_SIZE, free_page_limit);
+                free_pages_tool(UP_ALIGN_PAGE((size_t)del_block->content), page_limit);
             }
             else
             {
-                free_pages_tool1(_BASE+PAGE_SIZE, free_page_limit);
+                free_pages_tool1(UP_ALIGN_PAGE((size_t)del_block->content), page_limit);
             }
         }
         else
         {
             // free del.content
             list_add(&del_block->header.node_free_blocks, &head_free_blocks);
-            free_pages_tool(_BASE+PAGE_SIZE, REMOVE_BITS_LOW((size_t)next_block, PAGE_P2SIZE) );
+            free_pages_tool(UP_ALIGN_PAGE((size_t)del_block->content), ALIGN_PAGE((size_t)next_block) );
         }
         return;
     }
