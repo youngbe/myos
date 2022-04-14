@@ -359,7 +359,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
     }
     if ( size == 0 )
     {
-        return (void *)((size_t)NULL+_ALIGN);
+        return (void *)((size_t)NULL+MALLOC_ALIGN);
     }
     // size 向上取整对齐MALLOC_P2ALIGN
     size=UP_ALIGN_MALLOC(size);
@@ -386,7 +386,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
             }
             if ( (size_t)free_block == _BASE )
             {
-                size_t const new_content=P2ALGN(next_block_t-size, p2align);
+                size_t const new_content=P2ALIGN(next_block_t-size, p2align);
                 if ( new_content < free_content )
                 {
                     continue;
