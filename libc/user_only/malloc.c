@@ -295,7 +295,7 @@ void free(void *base)
         size_t page_start=ALIGN_PAGE((size_t)del_block);
         if ( page_start == ALIGN_PAGE((size_t)prev_block->content-1) )
         {
-            free_page_start+=PAGE_SIZE;
+            page_start+=PAGE_SIZE;
         }
         if ( next_block->header.flag == 0 )
         {
@@ -361,14 +361,13 @@ void *malloc_p2align(size_t size, const size_t p2align)
     {
         return (void *)((size_t)NULL+_ALIGN);
     }
-    // size 向上取整对齐_P2ALIGN
-    size=REMOVE_BITS_LOW(size-1, _P2ALIGN)+_ALIGN;
+    // size 向上取整对齐MALLOC_P2ALIGN
+    size=UP_ALIGN_MALLOC(size);
     if ( size == 0 )
     {
         return NULL;
     }
-    // >= 2^48
-    if ( REMOVE_BITS_LOW(size, 48) !=0 || p2align >= 48 )
+    if ( p2align >= sizeof(size_t)*8 )
     {
         return NULL;
     }
@@ -381,9 +380,13 @@ void *malloc_p2align(size_t size, const size_t p2align)
             // prev_block free_block new_block new_free_block next_block
             size_t const free_content=(size_t)free_block->content;
             size_t const next_block_t=free_content+free_block->header.size;
+            if ( next_block_t - free_content < size )
+            {
+                continue;
+            }
             if ( (size_t)free_block == _BASE )
             {
-                size_t const new_content=REMOVE_BITS_LOW(next_block_t-size, p2align);
+                size_t const new_content=P2ALGN(next_block_t-size, p2align);
                 Block *const new_block=(Block *)(new_content-offsetof(Block, content));
                 if ( (size_t)new_block < free_content)
                 {
@@ -408,9 +411,7 @@ void *malloc_p2align(size_t size, const size_t p2align)
 label1:
                         // 前面后面都贴住了
                         // alloc free_content to next_block_t-1
-                        if (alloc_pages_tool(
-                                REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE,
-                                REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0)
+                        if (alloc_pages_tool(UP_ALIGN_PAGE(free_content), ALIGN_PAGE(next_block_t)) != 0)
                         {
                             return NULL;
                         }
@@ -421,13 +422,12 @@ label1:
                         // 前面没贴住，后面贴住了
                         {
                             // alloc new_block to next_block_t-1
-                            size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-                            if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                            size_t page_start=ALIGN_PAGE((size_t)new_block);
+                            if ( page_start == ALIGN_PAGE(free_content-1) )
                             {
                                 page_start+=PAGE_SIZE;
                             }
-                            if ( alloc_pages_tool(page_start,
-                                        REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE)) != 0 )
+                            if ( alloc_pages_tool(page_start, ALIGN_PAGE(next_block_t)) != 0 )
                             {
                                 return NULL;
                             }
@@ -448,17 +448,17 @@ label2:
                         Block *const new_free_block=free_content+size;
                         size_t const new_free_content=(size_t)new_free_block->content;
                         {
-                            size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
-                            if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                            size_t const page_limit=ALIGN_PAGE(new_free_content-1);
+                            if ( page_limit == ALIGN_PAGE(next_block_t) )
                             {
-                                if ( alloc_pages_tool( REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit ) != 0 )
+                                if ( alloc_pages_tool( UP_ALIGN_PAGE(free_content), page_limit ) != 0 )
                                 {
                                     return NULL;
                                 }
                             }
                             else
                             {
-                                if ( alloc_pages_tool1( REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE)+PAGE_SIZE, page_limit ) != 0 )
+                                if ( alloc_pages_tool1( UP_ALIGN_PAGE(free_content), page_limit ) != 0 )
                                 {
                                     return NULL;
                                 }
@@ -479,13 +479,13 @@ label2:
                         size_t const new_free_content=(size_t)new_free_block->content;
                         {
                             // alloc new_block to new_free_content-1
-                            size_t page_start=REMOVE_BITS_LOW((size_t)new_block, PAGE_P2SIZE);
-                            if ( page_start == REMOVE_BITS_LOW(free_content-1, PAGE_P2SIZE) )
+                            size_t page_start=ALIGN_PAGE((size_t)new_block);
+                            if ( page_start == ALIGN_PAGE(free_content-1) )
                             {
                                 page_start+=PAGE_SIZE;
                             }
-                            size_t const page_limit=REMOVE_BITS_LOW(new_free_content-1, PAGE_P2SIZE);
-                            if ( page_limit == REMOVE_BITS_LOW(next_block_t, PAGE_P2SIZE) )
+                            size_t const page_limit=ALIGN_PAGE(new_free_content-1);
+                            if ( page_limit == ALIGN_PAGE(next_block_t) )
                             {
                                 if ( alloc_pages_tool(page_start, page_limit) != 0 )
                                 {
