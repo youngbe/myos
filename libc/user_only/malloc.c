@@ -355,8 +355,10 @@ void free(void *base)
     }
 }
 
-void *malloc_p2align(size_t size, const size_t p2align)
+void *malloc_p2align(size_t size_o, const size_t p2align)
 {
+    compiletime_assert( sizeof(uintptr_t)>=sizeof(size_t), "Unsupport architecture: sizeof(size_t)>sizeof(uintptr_t)" );
+    uintptr_t size=size_o;
     if ( p2align <= _P2ALIGN )
     {
         return malloc(size);
@@ -674,11 +676,11 @@ label_next:
         }
         else
         {
-            if ( (size_t)offsetof(Block, content)*2 > _LIMIT - _BASE )
+            if ( (uintptr_t)offsetof(Block, content)*2 > _LIMIT - _BASE )
             {
                 return NULL;
             }
-            uintptr_t new_content=P2ALIGN((uintptr_t)(_BASE+(size_t)offsetof(Block, content)*2-1), p2align);
+            uintptr_t new_content=P2ALIGN((_BASE+offsetof(Block, content)*2-1), p2align);
             if ( _LIMIT - new_content < align )
             {
                 return NULL;
