@@ -1,3 +1,10 @@
+/* 这是一个可移植的malloc/free函数的实现，用于在分页的基础上进行更细致的内存管理
+ * 适用于所有指令集和系统架构，只要系统使用分页的内存管理
+ * 只需要指定 PAGE_P2SIZE MALLOC_P2ALIGN _BASE _LIMIT 四个宏且操作系统实现了alloc_pages, free_pages 两个函数就可编译
+ * 关于这几个宏的含义，请见后文说明
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -18,6 +25,7 @@
 // 堆起始位置，含义见后文解释
 #define _BASE ((uintptr_t)0x100000000000)
 
+// 堆的最大地址，含义见后文解释
 #define _LIMIT ((uintptr_t)0x1000000000000)
 
 typedef struct Block_Header Block_Header;
@@ -40,6 +48,15 @@ struct __attribute__((aligned(_ALIGN))) Block
 static Block *last_block=NULL;
 static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
 
+// 通过系统调用，申请/释放页表
+// 由操作系统内核提供这两个函数的实现
+int alloc_pages(void *base, size_t num);
+void free_pages(void *base, size_t num);
+
+#define MALLOC_ALIGN (((uintptr_t)1)<<MALLOC_P2ALIGN)
+#define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
+
+
 /*
  * 数据结构说明：
  * 1. _BASE(类型为uintptr_t)是堆的起始地址
@@ -60,20 +77,20 @@ static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
  * 9. free_blocks是一个连接起所有未分配块的链表
  *
  * 限制条件说明：
- * 1. _LIMIT >= _BASE
- * 2. _BASE 对齐2的MALLOC_P2ALIGN次方和PAGE_P2SIZE次方
- * 3. [ _BASE, _LIMIT ] 不覆盖 NULL 以及 (NULL + 2^MALLOC_P2ALIGN)
- * 4. _LIMIT < UINTPTR_MAX - 页大小
- * 5. offsetof( Block, content )*2 < UINTPTR_MAX
+ * 1. 0 <= _BASE <_LIMIT <= UINTPTR_MAX
+ * 2. _LIMIT - _BASE >= offsetof(Block, content)
+ * 2. _BASE 对齐 MALLOC_ALIGN 和 PAGE_SIZE
+ * 3. [ _BASE, _LIMIT ] 不覆盖 NULL 和 (NULL + MALLOC_ALIGN)
+ * 4. _LIMIT <= UINTPTR_MAX - 页大小
+ * 5. 0 < offsetof( Block, content ) < UINTPTR_MAX/2
+ * 6. PAGE_P2SIZE < sizeof(uintptr_t)*8, MALLOC_P2ALIGN < sizeof(uintptr_t)*8
+ *
+ * 本算法实现假设：
+ * 1. sizeof(void *) == sizeof(uintptr_t)
+ * 2. sizeof(uintptr_t) 可能大于或小于 sizeof(size_t)
+ * 3. sizeof((uintptr_t)1 + (uintptr_t)1) 不一定等于 sizeof(uintptr_t)
+ *    比如，在x86_64下，sizeof((short)1 +(short)1) == sizeof(int)
  */
-
-// 通过系统调用，申请/释放页表
-// 由操作系统内核提供这两个函数的实现
-int alloc_pages(void *base, size_t num);
-void free_pages(void *base, size_t num);
-
-#define MALLOC_ALIGN (((uintptr_t)1)<<MALLOC_P2ALIGN)
-#define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
 
 // 下面这些宏定义仅允许作用于 uintptr_t ，返回uintptr_t
 #define P2ALIGN(x, p2align) REMOVE_BITS_LOW((uintptr_t)(x), (p2align))
@@ -92,8 +109,8 @@ static inline void free_pages_tool1_( uintptr_t page_start, uintptr_t page_limit
 
 void *malloc(size_t size_o)
 {
-    compiletime_assert( offsetof(Block, content) < UINTPTR_MAX, "offsetof(Block, content) too large!" );
-    compiletime_assert(  UINTPTR_MAX - offsetof(Block, content) > offsetof(Block, content), "offsetof(Block, content) too large!" );
+    compiletime_assert( offsetof(Block, content) < (UINTPTR_MAX>>1), "offsetof(Block, content) too large!" );
+    compiletime_assert( offsetof(Block, content) != 0, "offsetof(Block, content) == 0!" );
     if ( size_o > UINTPTR_MAX )
     {
         return NULL;
@@ -177,7 +194,6 @@ void *malloc(size_t size_o)
         last_block->header.size=size;
         last_block->header.flag=1;
         //last_block->prev=NULL;
-        return (void *)last_block->content;
     }
     // 在堆结尾创建新的块
     else
@@ -199,8 +215,8 @@ void *malloc(size_t size_o)
         new_block->header.flag=1;
         new_block->header.prev=last_block;
         last_block=new_block;
-        return (void *)new_block->content;
     }
+    return (void *)last_block->content;
 }
 
 void free(void *base)
@@ -362,7 +378,7 @@ void free(void *base)
 
 void *malloc_p2align(size_t size_o, const size_t p2align)
 {
-    if ( p2align <= _P2ALIGN )
+    if ( p2align <= MALLOC_P2ALIGN )
     {
         return malloc(size);
     }
@@ -493,7 +509,7 @@ label2:
                     else
                     {
                         // 前面后面都没贴住
-                        Block *const new_free_block=new_content+size;
+                        Block *const new_free_block=(Block*)(uintptr_t)(new_content+size);
                         uintptr_t const new_free_content=(uintptr_t)new_free_block->content;
                         {
                             // alloc new_block to new_free_content-1
