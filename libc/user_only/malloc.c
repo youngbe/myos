@@ -66,15 +66,15 @@ int alloc_pages(void *base, size_t num);
 void free_pages(void *base, size_t num);
 
 #define MALLOC_ALIGN (((uintptr_t)1)<<MALLOC_P2ALIGN)
-#define PAGE_SIZE (((size_t)1)<<PAGE_P2SIZE)
+#define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
 
-// 下面这些宏定义仅允许作用于 uintptr_t intptr_t
-#define P2ALIGN(x, p2align) REMOVE_BITS_LOW((x), (p2align))
-#define UP_P2ALIGN(x, p2align) (REMOVE_BITS_LOW((x)-1, (p2align)) + (((uintptr_t)1)<<(p2align)))
-#define ALIGN_PAGE(x) P2ALIGN((x), PAGE_P2SIZE)
-#define UP_ALIGN_PAGE(x) (ALIGN_PAGE((x)-1) + (uintptr_t)PAGE_SIZE)
-#define ALIGN_MALLOC(x) P2ALIGN((x), MALLOC_P2ALIGN)
-#define UP_ALIGN_MALLOC(x) (ALIGN_MALLOC((x)-1)+MALLOC_ALIGN)
+// 下面这些宏定义仅允许作用于 uintptr_t ，返回uintptr_t
+#define P2ALIGN(x, p2align) REMOVE_BITS_LOW((uintptr_t)(x), (p2align))
+#define UP_P2ALIGN(x, p2align) ((uintptr_t)(REMOVE_BITS_LOW((uintptr_t)((x)-1), (p2align)) + (((uintptr_t)1)<<(p2align))))
+#define ALIGN_PAGE(x) P2ALIGN((uintptr_t)(x), PAGE_P2SIZE)
+#define UP_ALIGN_PAGE(x) ((uintptr_t)(ALIGN_PAGE((uintptr_t)((x)-1)) + PAGE_SIZE))
+#define ALIGN_MALLOC(x) P2ALIGN((uintptr_t)(x), MALLOC_P2ALIGN)
+#define UP_ALIGN_MALLOC(x) ((uintptr_t)(ALIGN_MALLOC((uintptr_t)((x)-1)) + MALLOC_ALIGN))
 
 static inline int alloc_pages_tool( uintptr_t page_start, uintptr_t page_end );
 static inline int alloc_pages_tool1( uintptr_t page_start, uintptr_t page_limit );
@@ -85,7 +85,12 @@ static inline void free_pages_tool1_( uintptr_t page_start, uintptr_t page_limit
 
 void *malloc(size_t size_o)
 {
-    compiletime_assert( sizeof(uintptr_t)>=sizeof(size_t), "Unsupport architecture: sizeof(size_t)>sizeof(uintptr_t)" );
+    compiletime_assert( offsetof(Block, content) < UINTPTR_MAX, "offsetof(Block, content) too large!" );
+    compiletime_assert(  UINTPTR_MAX - offsetof(Block, content) > offsetof(Block, content), "offsetof(Block, content) too large!" );
+    if ( size_o > UINTPTR_MAX )
+    {
+        return NULL;
+    }
     uintptr_t size=size_o;
     if ( size == 0 )
     {
@@ -110,11 +115,7 @@ void *malloc(size_t size_o)
             if ( free_block->header.size - size <= offsetof(Block, content) )
             {
                 // free aera : free_block->content[ 0 to (free_block->header.size-1) ]
-                if (
-                        alloc_pages_tool(
-                            UP_ALIGN_PAGE((uintptr_t)free_block->content),
-                            ALIGN_PAGE(next_block_t)
-                            ) != 0 )
+                if ( alloc_pages_tool(UP_ALIGN_PAGE((uintptr_t)free_block->content), ALIGN_PAGE(next_block_t)) != 0 )
                 {
                     return NULL;
                 }
@@ -126,7 +127,7 @@ void *malloc(size_t size_o)
             {
                 // 增加块 new_block
                 uintptr_t const new_content=next_block_t-size;
-                Block *const new_block=(Block*)(new_content-offsetof(Block, content));
+                Block *const new_block=(Block*)(uintptr_t)(new_content-offsetof(Block, content));
                 {
                     uintptr_t page_start=ALIGN_PAGE((uintptr_t)new_block);
                     if ( page_start == ALIGN_PAGE((uintptr_t)free_block->content-1) )
@@ -183,10 +184,7 @@ void *malloc(size_t size_o)
             return NULL;
         }
         Block *const new_block=(Block*)&last_block->content[last_block->header.size];
-        if ( alloc_pages_tool1(
-                    UP_ALIGN_PAGE((uintptr_t)new_block),
-                    ALIGN_PAGE((uintptr_t)&new_block->content[size]-1)
-                    ) != 0 )
+        if ( alloc_pages_tool1(UP_ALIGN_PAGE((uintptr_t)new_block), ALIGN_PAGE((uintptr_t)&new_block->content[size]-1)) != 0 )
         {
             return NULL;
         }
@@ -200,7 +198,7 @@ void *malloc(size_t size_o)
 
 void free(void *base)
 {
-    Block *const del_block=(Block *)((uintptr_t)base-offsetof(Block, content));
+    Block *const del_block=(Block *)(uintptr_t)((uintptr_t)base-offsetof(Block, content));
     if ( del_block == last_block )
     {
         if ( (uintptr_t)del_block == _BASE )
@@ -357,12 +355,15 @@ void free(void *base)
 
 void *malloc_p2align(size_t size_o, const size_t p2align)
 {
-    compiletime_assert( sizeof(uintptr_t)>=sizeof(size_t), "Unsupport architecture: sizeof(size_t)>sizeof(uintptr_t)" );
-    uintptr_t size=size_o;
     if ( p2align <= _P2ALIGN )
     {
         return malloc(size);
     }
+    if ( size_o > UINTPTR_MAX )
+    {
+        return NULL;
+    }
+    uintptr_t size=size_o;
     if ( size == 0 )
     {
         return (void *)((uintptr_t)NULL+MALLOC_ALIGN);
@@ -397,7 +398,7 @@ void *malloc_p2align(size_t size_o, const size_t p2align)
                 {
                     continue;
                 }
-                Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+                Block *const new_block=(Block *)(uintptr_t)(new_content-offsetof(Block, content));
                 if ( (uintptr_t)new_block < free_content)
                 {
                     if ( new_block != free_block )
@@ -537,7 +538,7 @@ label2:
                 }
                 // 贴住了
                 // alloc new_block to next_block-1
-                Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+                Block *const new_block=(Block *)(uintptr_t)(new_content-offsetof(Block, content));
                 if ( (uintptr_t)new_block <= free_content )
                 {
                     // 同时也贴住了前面
@@ -579,8 +580,8 @@ label2:
 label_next:
             // 从前面贴
             uintptr_t const new_content=UP_P2ALIGN(free_content, p2align);
-            Block *const new_block=(Block *)(new_content-offsetof(Block, content));
-            Block *const new_free_block=(Block *)(new_content+size);
+            Block *const new_block=(Block *)(uintptr_t)(new_content-offsetof(Block, content));
+            Block *const new_free_block=(Block *)(uintptr_t)(new_content+size);
             uintptr_t const new_free_content=(uintptr_t)new_free_block->content;
             if ( (uintptr_t)new_block <= free_content )
             {
@@ -676,11 +677,11 @@ label_next:
         }
         else
         {
-            if ( (uintptr_t)offsetof(Block, content)*2 > _LIMIT - _BASE )
+            if ( offsetof(Block, content)*2 > _LIMIT - _BASE )
             {
                 return NULL;
             }
-            uintptr_t new_content=P2ALIGN((_BASE+offsetof(Block, content)*2-1), p2align);
+            uintptr_t new_content=P2ALIGN(_BASE+offsetof(Block, content)*2-1, p2align);
             if ( _LIMIT - new_content < align )
             {
                 return NULL;
@@ -694,7 +695,7 @@ label_next:
             {
                 return NULL;
             }
-            Block *const new_block=(Block*)(new_content-offsetof(Block, content));
+            Block *const new_block=(Block*)(uintptr_t)(new_content-offsetof(Block, content));
             list_add(&last_block->header.node_free_blocks, &head_fee_blocks);
             last_block=(Block *)_BASE;
             last_block->header.size=(uintptr_t)new_block-(uintptr_t)last_block->content;
@@ -722,7 +723,7 @@ label_next:
     {
         return NULL;
     }
-    Block *const new_block=(Block *)(new_content-offsetof(Block, content));
+    Block *const new_block=(Block *)(uintptr_t)(new_content-offsetof(Block, content));
     {
         uintptr_t const page_start0=UP_ALIGN_PAGE(free_block);
         uintptr_t const page_limit0=ALIGN_PAGE(free_content-1);
