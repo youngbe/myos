@@ -42,7 +42,7 @@ static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
 
 /*
  * 数据结构说明：
- * 1. _BASE(类型为uintptr_t)是堆的起始地址，_BASE必须对齐PAGE_SIZE和MALLOC_ALIGN，且不等于0
+ * 1. _BASE(类型为uintptr_t)是堆的起始地址
  * 2. 设堆的大小为size，则堆的范围为[_BASE, _BASE+size-1]，初始状态下堆大小为0
  * 3. size最大不会超过 (_LIMIT - _BASE + 1)
  * 4. 堆中放的是一个一个块(Block)，紧凑堆放
@@ -58,6 +58,13 @@ static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
  * 7. 最后一个块的类型一定是已分配
  * 8. 不可能存在两个连续的未分配的块（两个连续的未分配块将会合并为一个块）
  * 9. free_blocks是一个连接起所有未分配块的链表
+ *
+ * 限制条件说明：
+ * 1. _LIMIT >= _BASE
+ * 2. _BASE 对齐2的MALLOC_P2ALIGN次方和PAGE_P2SIZE次方
+ * 3. [ _BASE, _LIMIT ] 不覆盖 NULL 以及 (NULL + 2^MALLOC_P2ALIGN)
+ * 4. _LIMIT < UINTPTR_MAX - 页大小
+ * 5. offsetof( Block, content )*2 < UINTPTR_MAX
  */
 
 // 通过系统调用，申请/释放页表
@@ -70,11 +77,11 @@ void free_pages(void *base, size_t num);
 
 // 下面这些宏定义仅允许作用于 uintptr_t ，返回uintptr_t
 #define P2ALIGN(x, p2align) REMOVE_BITS_LOW((uintptr_t)(x), (p2align))
-#define UP_P2ALIGN(x, p2align) ((uintptr_t)(REMOVE_BITS_LOW((uintptr_t)((x)-1), (p2align)) + (((uintptr_t)1)<<(p2align))))
+#define UP_P2ALIGN(x, p2align) ((uintptr_t)(REMOVE_BITS_LOW((uintptr_t)((uintptr_t)(x)-1), (p2align)) + (((uintptr_t)1)<<(p2align))))
 #define ALIGN_PAGE(x) P2ALIGN((uintptr_t)(x), PAGE_P2SIZE)
-#define UP_ALIGN_PAGE(x) ((uintptr_t)(ALIGN_PAGE((uintptr_t)((x)-1)) + PAGE_SIZE))
+#define UP_ALIGN_PAGE(x) ((uintptr_t)(ALIGN_PAGE((uintptr_t)((uintptr_t)(x)-1)) + PAGE_SIZE))
 #define ALIGN_MALLOC(x) P2ALIGN((uintptr_t)(x), MALLOC_P2ALIGN)
-#define UP_ALIGN_MALLOC(x) ((uintptr_t)(ALIGN_MALLOC((uintptr_t)((x)-1)) + MALLOC_ALIGN))
+#define UP_ALIGN_MALLOC(x) ((uintptr_t)(ALIGN_MALLOC((uintptr_t)((uintptr_t)(x)-1)) + MALLOC_ALIGN))
 
 static inline int alloc_pages_tool( uintptr_t page_start, uintptr_t page_end );
 static inline int alloc_pages_tool1( uintptr_t page_start, uintptr_t page_limit );
