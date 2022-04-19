@@ -211,6 +211,7 @@ label_next0:
     {
         size_t const max_free_pages_num=calc_free_pages_num(usable_blocks, usable_blocks_num);
         free_pages=(void**)malloc_mark(max_free_pages_num*sizeof(void*), 3, 1, usable_blocks, &usable_blocks_num);
+        free_ptps=(struct Page_Table_Page **)&free_pages[max_free_pages_num];
         init_free_pages(usable_blocks, usable_blocks_num);
     }
 
