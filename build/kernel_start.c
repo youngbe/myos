@@ -11,13 +11,13 @@ struct __attribute__((packed)) Elf64_Rela
     uint64_t append;
 };
 
-int main();
+void main(void *, void *);
 
 extern struct Elf64_Rela __start_rela_dyn[];
 extern struct Elf64_Rela __stop_rela_dyn[];
 
 __attribute__((section(".text.entry_point"), noreturn))
-void _start()
+void _start(void *arg1, void *arg2)
 {
     for (size_t i=0; &__start_rela_dyn[i] < __stop_rela_dyn; ++i)
     {
@@ -27,7 +27,7 @@ void _start()
         }
         *(uint64_t volatile *)((size_t)_start+__start_rela_dyn[i].offset)=(uint64_t)((size_t)_start+__start_rela_dyn[i].append);
     }
-    main();
+    main(arg1, arg2);
     for ( size_t i=0; i<80*25; ++i )
     {
         (*(uint16_t (*)[80*25])0xb8000)[i]=0x0700;

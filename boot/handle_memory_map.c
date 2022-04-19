@@ -15,7 +15,7 @@ struct __attribute__((packed)) E820_Entry
 };
 
 typedef struct Memory_Block Memory_Block;
-struct Memory_Block
+struct __attribute__((packed)) Memory_Block
 {
     uint64_t base;
     uint64_t size;

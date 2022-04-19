@@ -16,7 +16,7 @@
 #define __TSS       (GDT_ENTRY_TSS<<3)
 
 typedef struct Memory_Block Memory_Block;
-struct Memory_Block
+struct __attribute__((packed)) Memory_Block
 {
     uint64_t base;
     uint64_t size;
