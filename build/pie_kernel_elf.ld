@@ -70,8 +70,8 @@ SECTIONS
         *(.rela.lbss .rela.lbss.* .rela.gnu.linkonce.lb.*)
         *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
         *(.rela.ifunc)
-        __stop_rela_dyn = . ;
     }
+    __stop_rela_dyn = . ;
 
     .note.gnu.build-id  : { *(.note.gnu.build-id) }
     .hash           : { *(.hash) }
@@ -99,6 +99,8 @@ SECTIONS
 .plt.sec        : { *(.plt.sec) }
   .got            : { *(.got.plt) *(.igot.plt) *(.got) *(.igot) }
 */
+/*
     mytemp3 : { *(*) }
     ASSERT( SIZEOF(mytemp3) == 0, "unknown section exist!" )
+*/
 }

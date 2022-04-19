@@ -65,7 +65,7 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@
 
 $HOSTCC kernel/direct_page_table.c -o out/a.out
 out/a.out > out/direct_page_table.s
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
     -I kernel/include -I libc/include -I include \
     kernel/main3.c kernel/kernel_real_start.c libc/*.c out/direct_page_table.s \
     -o out/kernel.elf

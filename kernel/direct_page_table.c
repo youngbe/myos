@@ -2,7 +2,7 @@
 
 int main()
 {
-    puts("  .section    direct_page_table");
+    puts("  .section    direct_page_table, \"aw\"");
     puts("  .align 4096");
     puts("  .globl  __direct_page_table_start");
     puts("__direct_page_table_start:");
