@@ -48,6 +48,10 @@ SECTIONS
         /**(COMMON) */
     }
     __kernel_end = . ;
+    direct_page_table ALIGN(4096) :
+    {
+        *(direct_page_table)
+    }
     .rela.dyn  ALIGN(48) :
     {
         __start_rela_dyn = . ;

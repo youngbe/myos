@@ -3,21 +3,14 @@
 #include <stdint.h>
 
 static inline int strncmp ( const char * str1, const char * str2, size_t num );
-static inline void * memcpy(void * destination, const void * source, size_t size);
+void * memcpy(void * destination, const void * source, size_t size);
 static inline void * memmove(void * destination, const void * source, size_t size);
-static inline void * memset ( void * ptr, int value, size_t num );
+void * memset ( void * ptr, int value, size_t num );
 
 
 // 用最简单的方式实现memcpy和memmove，而不是内嵌汇编
 // 让gcc编译器来优化这些代码，效果不错
-inline void * memcpy ( void * destination, const void * source, size_t num )
-{
-    for ( size_t i=0; i<num; ++i )
-    {
-        ((uint8_t*)destination)[i]=((const uint8_t*)source)[i];
-    }
-    return destination;
-}
+
 
 /*
 inline void * memcpy ( void * destination, const void * source, size_t num )
@@ -82,16 +75,6 @@ inline void * memmove ( void * destination, const void * source, size_t num )
         }
     }
     return destination;
-}
-
-inline void * memset ( void * ptr, int value, size_t num )
-{
-    while ( num != 0 )
-    {
-        --num;
-        ((uint8_t *)ptr)[num]=(uint8_t)value;
-    }
-    return ptr;
 }
 
 inline int strncmp ( const char * str1, const char * str2, size_t num )
