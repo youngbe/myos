@@ -59,15 +59,16 @@ echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
 mv out/handle_memory_map.s.new out/handle_memory_map.s
 
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
-    -I libc/include -I include \
+    -I libc/include -I include libc/memcpy32.s libc/memset32.s libc/memmove32.s libc/memcmp32.s \
     boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c boot/error.c \
     -o out/bootloader.bin
 
 $HOSTCC kernel/direct_page_table.c -o out/a.out
 out/a.out > out/direct_page_table.s
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-    -I kernel/include -I libc/include -I include \
-    kernel/main3.c kernel/kernel_real_start.c libc/*.c out/direct_page_table.s \
+
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+    -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
+    kernel/main3.c kernel/kernel_real_start.c out/direct_page_table.s \
     -o out/kernel.elf
 $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .rodata --set-section-flags .rodata=load,content,alloc \

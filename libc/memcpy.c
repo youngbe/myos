@@ -1,15 +1,7 @@
 #include <string.h>
 #include <stdint.h>
 
-void * memset ( void * ptr, int value, size_t num )
-{
-    while ( num != 0 )
-    {
-        --num;
-        ((uint8_t *)ptr)[num]=(uint8_t)value;
-    }
-    return ptr;
-}
+这个文件不应该被编译，请使用memcpy.s
 
 void * memcpy ( void * destination, const void * source, size_t num )
 {

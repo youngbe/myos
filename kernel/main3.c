@@ -46,7 +46,7 @@ struct __attribute__((packed)) GDT
 
 
 // 输入
-extern int _start[];
+__attribute__((section(".text.entry_point"), noreturn)) void _start(const Memory_Block *const blocks, const size_t blocks_num);
 extern int __kernel_end[];
 void kernel_real_start();
 extern const uint64_t (*const direct_cr3[512])[512];
@@ -289,7 +289,8 @@ label_next0:
             "movq   $0x1FFFFFFFFFF8, %%rsp\n\t"
             "jmp    kernel_real_start"
             :
-            :[cr3]"r"(init_cr3)
+            // 让 gcc 生成kernel_real_start函数
+            :"X"(kernel_real_start), [cr3]"r"(init_cr3)
             :"memory"
             );
     __builtin_unreachable();

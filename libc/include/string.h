@@ -3,13 +3,20 @@
 #include <stdint.h>
 
 static inline int strncmp ( const char * str1, const char * str2, size_t num );
-void * memcpy(void * destination, const void * source, size_t size);
+/*
+ * 根据文档，gcc编译器需要提供memcpy, memmove, memset, memcmp 的额外实现
+ * https://gcc.gnu.org/onlinedocs/gcc/Standards.html
+ * 这里预编译好了 memcpy.s memmove.s memset.s memcmp.s
+static inline void * memcpy(void * destination, const void * source, size_t size);
 static inline void * memmove(void * destination, const void * source, size_t size);
+static inline void * memset ( void * ptr, int value, size_t num );
+static inline int memcmp(const void *str1, const void *str2, size_t n);
+*/
+void * memcpy(void * destination, const void * source, size_t size);
+void * memmove(void * destination, const void * source, size_t size);
 void * memset ( void * ptr, int value, size_t num );
+int memcmp(const void *str1, const void *str2, size_t n);
 
-
-// 用最简单的方式实现memcpy和memmove，而不是内嵌汇编
-// 让gcc编译器来优化这些代码，效果不错
 
 
 /*
@@ -57,26 +64,6 @@ inline void * memcpy ( void * destination, const void * source, size_t num )
 }
 */
 
-inline void * memmove ( void * destination, const void * source, size_t num )
-{
-    if ( source > destination || destination >= (const void *)((const uint8_t *)source + num) )
-    {
-        for ( size_t i=0; i<num; ++i )
-        {
-            ((uint8_t*)destination)[i]=((const uint8_t*)source)[i];
-        }
-    }
-    else if ( source < destination )
-    {
-        while (num!=0)
-        {
-            --num;
-            ((uint8_t*)destination)[num]=((const uint8_t*)source)[num];
-        }
-    }
-    return destination;
-}
-
 inline int strncmp ( const char * str1, const char * str2, size_t num )
 {
     while ( num != 0 )
@@ -91,4 +78,3 @@ inline int strncmp ( const char * str1, const char * str2, size_t num )
     }
     return 0;
 }
-
