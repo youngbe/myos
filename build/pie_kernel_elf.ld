@@ -48,10 +48,6 @@ SECTIONS
         /**(COMMON) */
     }
     __kernel_end = . ;
-    direct_page_table ALIGN(4096) :
-    {
-        *(direct_page_table)
-    }
     .rela.dyn  ALIGN(48) :
     {
         __start_rela_dyn = . ;
@@ -99,8 +95,6 @@ SECTIONS
 .plt.sec        : { *(.plt.sec) }
   .got            : { *(.got.plt) *(.igot.plt) *(.got) *(.igot) }
 */
-/*
     mytemp3 : { *(*) }
     ASSERT( SIZEOF(mytemp3) == 0, "unknown section exist!" )
-*/
 }
