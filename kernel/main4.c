@@ -1,7 +1,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
 #include <bit.h>
+
+#include <kernel.h>
 
 #define GDT_ENTRY_NULL      0
 #define GDT_ENTRY_CS        1
@@ -71,7 +74,7 @@ static struct GDT __attribute__((aligned(32))) gdt=
     {0, 0, 0, 0 ,0 , 0}
 };
 size_t free_pages_num=0;
-void **free_pages;
+uint64_t *free_pages;
 uint64_t (*page_tables)[512];
 uint64_t (**free_page_tables)[512];
 size_t free_page_tables_num;
@@ -80,7 +83,6 @@ uint_fast16_t *pte_nums;
 
 static inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size_t index, const uint64_t start, const uint64_t end, const uint32_t type);
 static inline void* malloc_mark(size_t const size, size_t const p2align, const uint32_t type, Memory_Block *const blocks, size_t *const blocks_num);
-static inline __attribute__((noreturn)) void error();
 static inline size_t calc_free_pages_num(const Memory_Block *const blocks, size_t const blocks_num);
 static inline void init_free_pages(const Memory_Block *const blocks, size_t const blocks_num);
 static inline uint64_t (*new_pt())[512];
@@ -90,7 +92,7 @@ static inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, u
 #define MAX_BLOCKS_NUM 512
 
 /* virtual memory map:
- * 0-4T kernel text data rodata free_pages
+ * 0-4T kernel text data rodata page_tables free_pages
  * 4T-32T kernel heap stack
  * 30T-32T kernel stack
  * 32T-64T user data text rodata bss
@@ -105,12 +107,12 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
     if ( GET_BITS_LOW((uint64_t)_start, 12) != 0 )
     {
         // 内核加载位置aligned不足
-        error();
+        kernel_abort("Error in init!");
     }
 
 
     // type:0 空闲块
-    // 1: 内存已分配，且需要映射到页表
+    // 1: 内存已分配，且需要1:1映射到页表
     Memory_Block usable_blocks[MAX_BLOCKS_NUM];
     size_t usable_blocks_num=0;
 
@@ -150,7 +152,7 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
         {
             if ( usable_blocks_num == MAX_BLOCKS_NUM )
             {
-                error();
+                kernel_abort("Error in init!");
             }
             usable_blocks[usable_blocks_num].base=start;
             usable_blocks[usable_blocks_num].size=end-start;
@@ -172,7 +174,7 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
         }
     }
     // 内核代码和不可用页交错
-    error();
+    kernel_abort("Error in init!");
 label_next0:
 
     {
@@ -180,16 +182,16 @@ label_next0:
         free_page_tables_num=calc_free_pages_num(usable_blocks, usable_blocks_num)<<2;
         if ( free_page_tables_num <= 128 )
         {
-            error();
+            kernel_abort("Error in init!");
         }
 
         page_tables=malloc_mark(free_page_tables_num*sizeof(*page_tables), 12, 1, usable_blocks, &usable_blocks_num);
-        memset(page_tables, 0, free_page_tables_num*sizeof(*page_table));
+        memset(page_tables, 0, free_page_tables_num*sizeof(*page_tables));
 
         free_page_tables=malloc_mark(sizeof(void*)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
         for ( size_t i=0; i<free_page_tables_num; ++i )
         {
-            free_page_table[i]=&page_tables[free_page_tables_num-i-1];
+            free_page_tables[i]=&page_tables[free_page_tables_num-i-1];
         }
 
         pte_nums=malloc_mark(sizeof(*pte_nums)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
@@ -199,7 +201,7 @@ label_next0:
     // free page
     {
         size_t const max_free_pages_num=calc_free_pages_num(usable_blocks, usable_blocks_num);
-        free_pages=(void**)malloc_mark(max_free_pages_num*sizeof(void*), 3, 1, usable_blocks, &usable_blocks_num);
+        free_pages=(uint64_t *)malloc_mark(max_free_pages_num*sizeof(uint64_t), 3, 1, usable_blocks, &usable_blocks_num);
         init_free_pages(usable_blocks, usable_blocks_num);
     }
 
@@ -222,10 +224,10 @@ label_next0:
             const uint64_t end=REMOVE_BITS_LOW(usable_blocks[i].base+usable_blocks[i].size-1, 21)+((uint64_t)1<<21);
             while ( start != end )
             {
-                // 大于4G
-                if ( start >= ((uint64_t)1<<32)  )
+                // 大于4T
+                if ( start >= ((uint64_t)1<<42)  )
                 {
-                    error();
+                    kernel_abort("Error in init!");
                 }
                 map_page_2m(start, start, &page_tables[64]);
                 start+=(uint64_t)1<<21;
@@ -236,9 +238,9 @@ label_next0:
     {
         if ( free_pages_num == 0 )
         {
-            error();
+            kernel_abort("Error in init!");
         }
-        uint64_t const stack_page=(uint64_t)free_pages[--free_pages_num];
+        uint64_t const stack_page=free_pages[--free_pages_num];
         // map to 32T
         map_page_2m(((uint64_t)1<<45)-((uint64_t)1<<21), stack_page, &page_tables[64]);
     }
@@ -282,7 +284,7 @@ label_next0:
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"(init_cr3)
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64])
             :"memory"
             );
     __builtin_unreachable();
@@ -293,11 +295,11 @@ inline void* malloc_mark(size_t const size, size_t const p2align, const uint32_t
 {
     if ( size == 0 )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( p2align < 3 || p2align >=64)
     {
-        error();
+        kernel_abort("Error in init!");
     }
     for ( size_t i=0; i<*blocks_num; ++i )
     {
@@ -313,7 +315,7 @@ inline void* malloc_mark(size_t const size, size_t const p2align, const uint32_t
             return (void*)aligned_base;
         }
     }
-    error();
+    kernel_abort("Error in init!");
 }
 
 inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size_t i, const uint64_t start, const uint64_t end, const uint32_t type)
@@ -321,15 +323,15 @@ inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size
     const uint64_t blocks_end=blocks[i].base+blocks[i].size;
     if ( start < blocks[i].base || end > blocks_end )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( end <= start )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( type == 0 )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( start == blocks[i].base )
     {
@@ -341,7 +343,7 @@ inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size
         {
             if ( *blocks_num == MAX_BLOCKS_NUM )
             {
-                error();
+                kernel_abort("Error in init!");
             }
             memmove(&blocks[i+2], &blocks[i+1], (*blocks_num-i-1)*sizeof(blocks[0]));
             blocks[i+1].base=end;
@@ -355,7 +357,7 @@ inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size
     }
     if ( *blocks_num == MAX_BLOCKS_NUM )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     memmove(&blocks[i+2], &blocks[i+1], (*blocks_num-i-1)*sizeof(blocks[0]));
     blocks[i].size=start-blocks[i].base;
@@ -369,7 +371,7 @@ inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size
     }
     if ( *blocks_num == MAX_BLOCKS_NUM )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     memmove(&blocks[i+3], &blocks[i+2], (*blocks_num-i-2)*sizeof(blocks[0]));
     blocks[i+2].base=end;
@@ -382,11 +384,11 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t
 {
     if ( v_page >= (((uint64_t)1)<<48) || phy_page >= (((uint64_t)1)<<48) )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( GET_BITS_LOW(v_page, 21) != 0 || GET_BITS_LOW(phy_page, 21) != 0 )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 2mb物理页
     uint64_t i=v_page>>39;
@@ -426,11 +428,11 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
 {
     if ( v_page >= (((uint64_t)1)<<48) || phy_page >= (((uint64_t)1)<<48) )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     if ( GET_BITS_LOW(v_page, 12) != 0 || GET_BITS_LOW(phy_page, 12) != 0 )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 3级页表 -> 4k物理页
     uint64_t i=v_page>>39;
@@ -479,44 +481,11 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
     return;
 }
 
-inline __attribute__((noreturn)) void error()
-{
-    struct __attribute__((packed)) Temp
-    {
-        uint16_t x[80*25];
-    };
-    *(struct Temp *)0xb8000=(struct Temp){ {[0 ... 80*25-1] = 0x0700} };
-    (*(char (*)[80*25*2])0xb8000)[0]='E';
-    (*(char (*)[80*25*2])0xb8000)[2]='r';
-    (*(char (*)[80*25*2])0xb8000)[4]='r';
-    (*(char (*)[80*25*2])0xb8000)[6]='o';
-    (*(char (*)[80*25*2])0xb8000)[8]='r';
-    (*(char (*)[80*25*2])0xb8000)[10]=' ';
-    (*(char (*)[80*25*2])0xb8000)[12]='i';
-    (*(char (*)[80*25*2])0xb8000)[14]='n';
-    (*(char (*)[80*25*2])0xb8000)[16]=' ';
-    (*(char (*)[80*25*2])0xb8000)[18]='i';
-    (*(char (*)[80*25*2])0xb8000)[20]='n';
-    (*(char (*)[80*25*2])0xb8000)[22]='i';
-    (*(char (*)[80*25*2])0xb8000)[24]='t';
-    (*(char (*)[80*25*2])0xb8000)[26]='!';
-    __asm__ volatile(
-            "cli\n"
-            "1:\n\t"
-            "hlt\n\t"
-            "jmp   1b"
-            :
-            :"m"(*(char (*)[80*25*2])0xb8000)
-            :
-            );
-    __builtin_unreachable();
-}
-
 inline uint64_t (*new_pt())[512]
 {
     if ( free_page_tables_num == 0 )
     {
-        error();
+        kernel_abort("Error in init!");
     }
     return free_page_tables[--free_page_tables_num];
 }
@@ -557,7 +526,7 @@ inline void init_free_pages(const Memory_Block *const blocks, size_t const block
         uint64_t const end=REMOVE_BITS_LOW(blocks[i].base+blocks[i].size, 21);
         while ( end > start )
         {
-            free_pages[free_pages_num++]=(void *)start;
+            free_pages[free_pages_num++]=start;
             start+=(uint64_t)1<<21;
         }
     }
