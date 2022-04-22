@@ -39,7 +39,7 @@ static inline uint_fast16_t * get_pte_num(uint64_t (*)[512]);
 
 
 
-static tsl_mutex pages_lock=UNLOCKED;
+static tsl_mutex pages_mutex=TSL_UNLOCKED;
 
 
 int alloc_pages_kernel(void *const base, const size_t num)
@@ -63,13 +63,13 @@ int alloc_pages_kernel(void *const base, const size_t num)
     }
     uint64_t const limit_page=base_page+((uint64_t)(num-1)<<21);
     size_t const max_need_page_tables_num=calc_max_need_page_tables_num(base_page, limit_page);
-    LOCK(pages_lock, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
+    TSL_LOCK_CONTENT(pages_mutex, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
             "=m"(*(uint64_t (*)[][512])page_tables),
             "=m"(free_page_tables_num), "=m"(*(uint64_t (* (*)[])[512])free_page_tables),
             "=m"(*(uint_fast16_t (*)[])pte_nums));
     if ( num>free_pages_num || max_need_page_tables_num > free_page_tables_num )
     {
-        pages_lock=UNLOCKED;
+        pages_mutex=TSL_UNLOCKED;
         return -1;
     }
     while ( 1 )
@@ -84,7 +84,7 @@ int alloc_pages_kernel(void *const base, const size_t num)
             base_page+=(uint64_t)1<<21;
         }
     }
-    UNLOCK(pages_lock, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
+    TSL_UNLOCK_CONTENT(pages_mutex, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
             "m"(*(uint64_t (*)[][512])page_tables),
             "m"(free_page_tables_num), "m"(*(uint64_t (* (*)[])[512])free_page_tables),
             "m"(*(uint_fast16_t (*)[])pte_nums));
@@ -104,7 +104,7 @@ void free_pages_kernel(void *const base, const size_t num)
             :);
     uint64_t base_page=(uint64_t)base;
     uint64_t const limit_page=base_page+((uint64_t)(num-1)<<21);
-    LOCK(pages_lock, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
+    TSL_LOCK_CONTENT(pages_mutex, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
             "=m"(*(uint64_t (*)[][512])page_tables),
             "=m"(free_page_tables_num), "=m"(*(uint64_t (* (*)[])[512])free_page_tables),
             "=m"(*(uint_fast16_t (*)[])pte_nums));
@@ -120,7 +120,7 @@ void free_pages_kernel(void *const base, const size_t num)
             base_page+=(uint64_t)1<<21;
         }
     }
-    UNLOCK(pages_lock, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
+    TSL_UNLOCK_CONTENT(pages_mutex, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
             "m"(*(uint64_t (*)[][512])page_tables),
             "m"(free_page_tables_num), "m"(*(uint64_t (* (*)[])[512])free_page_tables),
             "m"(*(uint_fast16_t (*)[])pte_nums));

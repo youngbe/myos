@@ -21,18 +21,22 @@
 #define PAGE_P2SIZE 21
 
 // 堆起始位置，含义见后文解释
-#define _BASE ((uintptr_t)0x100000000000)
+// 4T
+#define _BASE ((uintptr_t)0x40000000000)
 
 // 堆的最大地址，含义见后文解释
-#define _LIMIT ((uintptr_t)0x1000000000000)
+// 30T
+#define _LIMIT ((uintptr_t)(0x1e0000000000-1))
 
-#define MALLOC malloc
-#define FREE free
-#define MALLOC_P2ALIGN malloc_p2align
+#define MALLOC kmalloc
+#define FREE kfree
+#define MALLOC_P2ALIGN kmalloc_p2align
 // int ALLOC_PAGES(void* base, size_t num);
-#define ALLOC_PAGES(base, num) alloc_pages(base, num)
+#define ALLOC_PAGES(base, num) alloc_pages_kernel(base, num)
+int alloc_pages_kernel(void *const base, const size_t num);
 // void FREE_PAGES(void* base, size_t num);
-#define FREE_PAGES(base, num) free_pages(base, num)
+#define FREE_PAGES(base, num) free_pages_kernel(base, num)
+void free_pages_kernel(void *const base, const size_t num);
 
 #define MALLOC_ALIGNMENT (((uintptr_t)1)<<MALLOC_P2ALIGNMENT)
 #define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
