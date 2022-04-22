@@ -1,6 +1,6 @@
 /* 这是一个可移植的malloc/free函数的实现，用于在分页的基础上进行更细致的内存管理
  * 适用于所有指令集和系统架构，只要系统使用分页的内存管理
- * 只需要指定 PAGE_P2SIZE MALLOC_P2ALIGN _BASE _LIMIT 四个宏且操作系统实现了alloc_pages, free_pages 两个函数就可编译
+ * 只需要指定 PAGE_P2SIZE MALLOC_P2ALIGNMENT _BASE _LIMIT 四个宏且操作系统实现了ALLOC_PAGES, FREE_PAGES 两个函数就可编译
  * 关于这几个宏的含义，请见后文说明
  */
 
@@ -17,7 +17,7 @@
 
 // malloc返回的地址至少对齐2的多少次方
 // 在 Linux x86_64 上是16==2^4
-#define MALLOC_P2ALIGN 4
+#define MALLOC_P2ALIGNMENT 4
 
 // 页大小为2的多少次方
 #define PAGE_P2SIZE 21
@@ -28,9 +28,20 @@
 // 堆的最大地址，含义见后文解释
 #define _LIMIT ((uintptr_t)0x1000000000000)
 
+#define MALLOC malloc
+#define FREE free
+#define MALLOC_P2ALIGN malloc_p2align
+// int ALLOC_PAGES(void* base, size_t num);
+#define ALLOC_PAGES(base, num) alloc_pages(base, num)
+// void FREE_PAGES(void* base, size_t num);
+#define FREE_PAGES(base, num) free_pages(base, num)
+
+#define MALLOC_ALIGNMENT (((uintptr_t)1)<<MALLOC_P2ALIGNMENT)
+#define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
+
 typedef struct Block_Header Block_Header;
 typedef struct Block Block;
-struct __attribute__((aligned(_ALIGN))) Block_Header
+struct __attribute__((aligned(MALLOC_ALIGNMENT))) Block_Header
 {
     uintptr_t size;
     // == 0 空闲 ==1 已分配
@@ -39,23 +50,14 @@ struct __attribute__((aligned(_ALIGN))) Block_Header
     struct list_head node_free_blocks;
 };
 
-struct __attribute__((aligned(_ALIGN))) Block
+struct __attribute__((aligned(MALLOC_ALIGNMENT))) Block
 {
     Block_Header header;
-    uint8_t content[] __attribute__((aligned(_ALIGN)));
+    uint8_t content[] __attribute__((aligned(MALLOC_ALIGNMENT)));
 };
 
 static Block *last_block=NULL;
 static struct list_head head_free_blocks={&head_free_blocks, &head_free_blocks};
-
-// 通过系统调用，申请/释放页表
-// 由操作系统内核提供这两个函数的实现
-int alloc_pages(void *base, size_t num);
-void free_pages(void *base, size_t num);
-
-#define MALLOC_ALIGN (((uintptr_t)1)<<MALLOC_P2ALIGN)
-#define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
-
 
 /*
  * 数据结构说明：
@@ -79,11 +81,11 @@ void free_pages(void *base, size_t num);
  * 限制条件说明：
  * 1. 0 <= _BASE <_LIMIT <= UINTPTR_MAX
  * 2. _LIMIT - _BASE >= offsetof(Block, content)
- * 2. _BASE 对齐 MALLOC_ALIGN 和 PAGE_SIZE
- * 3. [ _BASE, _LIMIT ] 不覆盖 NULL 和 (NULL + MALLOC_ALIGN)
+ * 2. _BASE 对齐 MALLOC_ALIGNMENT 和 PAGE_SIZE
+ * 3. [ _BASE, _LIMIT ] 不覆盖 NULL 和 (NULL + MALLOC_ALIGNMENT)
  * 4. _LIMIT <= UINTPTR_MAX - 页大小
  * 5. 0 < offsetof( Block, content ) < UINTPTR_MAX/2
- * 6. PAGE_P2SIZE < sizeof(uintptr_t)*8, MALLOC_P2ALIGN < sizeof(uintptr_t)*8
+ * 6. PAGE_P2SIZE < sizeof(uintptr_t)*8, MALLOC_P2ALIGNMENT < sizeof(uintptr_t)*8
  *
  * 本算法实现假设：
  * 1. sizeof(void *) == sizeof(uintptr_t)
@@ -97,8 +99,8 @@ void free_pages(void *base, size_t num);
 #define UP_P2ALIGN(x, p2align) ((uintptr_t)(REMOVE_BITS_LOW((uintptr_t)((uintptr_t)(x)-1), (p2align)) + (((uintptr_t)1)<<(p2align))))
 #define ALIGN_PAGE(x) P2ALIGN((uintptr_t)(x), PAGE_P2SIZE)
 #define UP_ALIGN_PAGE(x) ((uintptr_t)(ALIGN_PAGE((uintptr_t)((uintptr_t)(x)-1)) + PAGE_SIZE))
-#define ALIGN_MALLOC(x) P2ALIGN((uintptr_t)(x), MALLOC_P2ALIGN)
-#define UP_ALIGN_MALLOC(x) ((uintptr_t)(ALIGN_MALLOC((uintptr_t)((uintptr_t)(x)-1)) + MALLOC_ALIGN))
+#define ALIGN_MALLOC(x) P2ALIGN((uintptr_t)(x), MALLOC_P2ALIGNMENT)
+#define UP_ALIGN_MALLOC(x) ((uintptr_t)(ALIGN_MALLOC((uintptr_t)((uintptr_t)(x)-1)) + MALLOC_ALIGNMENT))
 
 static inline int alloc_pages_tool( uintptr_t page_start, uintptr_t page_end );
 static inline int alloc_pages_tool1( uintptr_t page_start, uintptr_t page_limit );
@@ -118,9 +120,9 @@ void *malloc(size_t size_o)
     uintptr_t size=size_o;
     if ( size == 0 )
     {
-        return (void *)((uintptr_t)NULL+MALLOC_ALIGN);
+        return (void *)((uintptr_t)NULL+MALLOC_ALIGNMENT);
     }
-    // size 向上取整对齐MALLOC_P2ALIGN
+    // size 向上取整对齐MALLOC_P2ALIGNMENT
     size=UP_ALIGN_MALLOC(size);
     if ( size == 0 )
     {
@@ -186,7 +188,7 @@ void *malloc(size_t size_o)
         {
             return NULL;
         }
-        if ( alloc_pages((void *)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
+        if ( ALLOC_PAGES((void *)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
         {
             return NULL;
         }
@@ -227,7 +229,7 @@ void free(void *base)
         if ( (uintptr_t)del_block == _BASE )
         {
             // 没有更多的块了，清空堆
-            free_pages((void*)_BASE, ( (del_block->header.size+offsetof(Block, content)-1) >> PAGE_P2SIZE)+1);
+            FREE_PAGES((void*)_BASE, ( (del_block->header.size+offsetof(Block, content)-1) >> PAGE_P2SIZE)+1);
             last_block=NULL;
             return;
         }
@@ -242,11 +244,11 @@ void free(void *base)
                 {
                     // 有空隙
                     free_pages_tool1_(page_start, ALIGN_PAGE((uintptr_t)&del_block->content[del_block->header.size-1]);
-                    free_pages((void*)_BASE, (offsetof(Block, content)-1)>>PAGE_P2SIZE) +1);
+                    FREE_PAGES((void*)_BASE, (offsetof(Block, content)-1)>>PAGE_P2SIZE) +1);
                 }
                 else
                 {
-                    free_pages((void*)_BASE, ( ((uintptr_t)&del_block->content[del_block->header.size-1]-_BASE) >> PAGE_P2SIZE)+1);
+                    FREE_PAGES((void*)_BASE, ( ((uintptr_t)&del_block->content[del_block->header.size-1]-_BASE) >> PAGE_P2SIZE)+1);
                 }
                 head_free_blocks.prev=head_free_blocks.next=&head_free_blocks;
                 last_block=NULL;
@@ -378,7 +380,7 @@ void free(void *base)
 
 void *malloc_p2align(size_t size_o, const size_t p2align)
 {
-    if ( p2align <= MALLOC_P2ALIGN )
+    if ( p2align <= MALLOC_P2ALIGNMENT )
     {
         return malloc(size);
     }
@@ -389,9 +391,9 @@ void *malloc_p2align(size_t size_o, const size_t p2align)
     uintptr_t size=size_o;
     if ( size == 0 )
     {
-        return (void *)((uintptr_t)NULL+MALLOC_ALIGN);
+        return (void *)((uintptr_t)NULL+MALLOC_ALIGNMENT);
     }
-    // size 向上取整对齐MALLOC_P2ALIGN
+    // size 向上取整对齐MALLOC_P2ALIGNMENT
     size=UP_ALIGN_MALLOC(size);
     if ( size == 0 )
     {
@@ -689,7 +691,7 @@ label_next:
             {
                 return NULL;
             }
-            if ( alloc_pages((void*)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
+            if ( ALLOC_PAGES((void*)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
                 return NULL;
             }
@@ -714,7 +716,7 @@ label_next:
             {
                 return NULL;
             }
-            if ( alloc_pages((void*)_BASE, ((size+new_content-_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
+            if ( ALLOC_PAGES((void*)_BASE, ((size+new_content-_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
                 return NULL;
             }
@@ -800,7 +802,7 @@ inline int alloc_pages_tool( uintptr_t page_start, uintptr_t page_end )
 {
     if ( page_end > page_start )
     {
-        return alloc_pages((void *)page_start, (page_end-page_start)>>PAGE_P2SIZE );
+        return ALLOC_PAGES((void *)page_start, (page_end-page_start)>>PAGE_P2SIZE );
     }
     return 0;
 }
@@ -809,21 +811,21 @@ inline int alloc_pages_tool1( uintptr_t page_start, uintptr_t page_limit )
 {
     if ( page_limit >= page_start )
     {
-        return alloc_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
+        return ALLOC_PAGES((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
     }
     return 0;
 }
 
 inline int alloc_pages_tool1_( uintptr_t page_start, uintptr_t page_limit )
 {
-    return alloc_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
+    return ALLOC_PAGES((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
 }
 
 inline void free_pages_tool( uintptr_t page_start, uintptr_t page_end )
 {
     if ( page_end > page_start )
     {
-        free_pages((void *)page_start, (page_end-page_start)>>PAGE_P2SIZE );
+        FREE_PAGES((void *)page_start, (page_end-page_start)>>PAGE_P2SIZE );
     }
 }
 
@@ -831,11 +833,11 @@ inline void free_pages_tool1( uintptr_t page_start, uintptr_t page_limit )
 {
     if ( page_limit >= page_start )
     {
-        free_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
+        FREE_PAGES((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
     }
 }
 
 inline void free_pages_tool1_( uintptr_t page_start, uintptr_t page_limit )
 {
-    free_pages((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
+    FREE_PAGES((void *)page_start, ((page_limit-page_start)>>PAGE_P2SIZE)+1 );
 }
