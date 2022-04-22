@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 
 #define GDT_ENTRY_NULL      0
 #define GDT_ENTRY_CS        1

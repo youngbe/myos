@@ -11,7 +11,7 @@
 typedef struct Thread Thread;
 struct Thread
 {
-    uint8_t stack[4096];
+    uint8_t stack[STACK_SIZE];
     uint8_t stack_end[0] __attribute__((aligned(16)));
     struct list_nohead node_sched_threads;
 };

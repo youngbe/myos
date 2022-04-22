@@ -34,11 +34,24 @@ struct __attribute__((packed)) GDT
     struct Segment_Descriptor tssh_d;
 };
 
+struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
+{
+    uint16_t offset0;
+    uint16_t segment_selector;
+    uint8_t  ist;
+    uint8_t  flag;
+    uint16_t offset1;
+    uint32_t offset2;
+    uint32_t reserve;
+};
+
 
 // 输入
 __attribute__((section(".text.entry_point"), noreturn)) void _start(const Memory_Block *const blocks, const size_t blocks_num);
 extern int __kernel_end[];
 void kernel_real_start();
+void empty_isr();
+void timer_isr();
 // Memory Map 信息 ( 16Mb以下)
 // 64K可用栈 16Mb以下
 // 覆盖所有可访问物理地址的直接映射表 16Mb以下
@@ -59,6 +72,17 @@ static struct GDT __attribute__((aligned(32))) gdt=
     {0x67, 0, 0, 0b10001001, 0 , 0},
     // TSS Descriptor high
     {0, 0, 0, 0 ,0 , 0}
+};
+static struct __attribute__((packed))
+{
+    struct Interrupt_Gate_Descriptor64 igds[256];
+} idt __attribute__((aligned (32))) =
+{
+    {
+        [0 ... 31]={0, __CS, 2, 0b10001110, 0, 0 ,0},
+        [32]={0, __CS, 1, 0b10001110, 0, 0 ,0},
+        [33 ... 255]={0, __CS, 2, 0b10001110, 0, 0 ,0}
+    }
 };
 size_t free_pages_num=0;
 uint64_t *free_pages;
@@ -263,6 +287,32 @@ label_next0:
                 :"m"(gdtr), "m"(gdt), [cs]"i"(__CS)
                 :"rax"
                 );
+    }
+    // 初始化idt
+    {
+        
+        for (size_t i=0; i<256; ++i)
+        {
+            idt.igds[i].offset0=(uint16_t)(uintptr_t)empty_isr;
+            idt.igds[i].offset1=(uint16_t)(((uintptr_t)empty_isr)>>16);
+            idt.igds[i].offset2=(uint32_t)(((uintptr_t)empty_isr)>>32);
+        }
+        idt.igds[32].offset0=(uint16_t)(uintptr_t)timer_isr;
+        idt.igds[32].offset1=(uint16_t)(((uintptr_t)timer_isr)>>16);
+        idt.igds[32].offset2=(uint32_t)(((uintptr_t)timer_isr)>>32);
+        idt.igds[33].offset0=(uint16_t)(uintptr_t)keyboard_isr;
+        idt.igds[33].offset1=(uint16_t)(((uintptr_t)keyboard_isr)>>16);
+        idt.igds[33].offset2=(uint32_t)(((uintptr_t)keyboard_isr)>>32);
+        struct __attribute__((packed))
+        {
+            uint16_t limit;
+            uint64_t base;
+        } idtr={sizeof(idt)-1, (uint64_t)&idt};
+        __asm__ volatile (
+                "lidtq  %[idtr]"
+                :
+                :[idtr]"m"(idtr), "m"(idt)
+                :);
     }
     // 切换cr3，切换栈，跳转执行
     __asm__ volatile (
