@@ -19,7 +19,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= (((uint8_t)1)<<temp_bit_nums) - ((uint8_t)1); \
+        temp.pad&= (uint8_t)(((uint8_t)1<<temp_bit_nums) - (uint8_t)1); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 2 ) \
@@ -35,7 +35,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= (((uint16_t)1)<<temp_bit_nums) - ((uint16_t)1); \
+        temp.pad&= (uint16_t)(((uint16_t)1<<temp_bit_nums) - (uint16_t)1); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 4 ) \
@@ -51,7 +51,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= (((uint32_t)1)<<temp_bit_nums) - ((uint32_t)1); \
+        temp.pad&= (uint32_t)(((uint32_t)1<<temp_bit_nums) - (uint32_t)1); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 8 ) \
@@ -67,7 +67,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= (((uint64_t)1)<<temp_bit_nums) - ((uint64_t)1); \
+        temp.pad&= (uint64_t)(((uint64_t)1<<temp_bit_nums) - (uint64_t)1); \
         ret=temp._var; \
     } \
     else \
@@ -92,7 +92,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= ((uint8_t)-1)<<temp_bit_nums; \
+        temp.pad&= (uint8_t)((uint8_t)-1<<temp_bit_nums); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 2 ) \
@@ -108,7 +108,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= ((uint16_t)-1)<<temp_bit_nums; \
+        temp.pad&= (uint16_t)((uint16_t)-1<<temp_bit_nums); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 4 ) \
@@ -124,7 +124,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= ((uint32_t)-1)<<temp_bit_nums; \
+        temp.pad&= (uint32_t)((uint32_t)-1<<temp_bit_nums); \
         ret=temp._var; \
     } \
     else if ( sizeof(var) == 8 ) \
@@ -140,7 +140,7 @@
         { \
             __builtin_unreachable(); \
         } \
-        temp.pad&= ((uint64_t)-1)<<temp_bit_nums; \
+        temp.pad&= (uint64_t)((uint64_t)-1<<temp_bit_nums); \
         ret=temp._var; \
     } \
     else \

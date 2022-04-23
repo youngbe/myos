@@ -17,7 +17,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 8 ) \
         { \
-            temp.pad&= (((uint8_t)1)<<temp_bit_nums) - ((uint8_t)1); \
+            temp.pad&= (uint8_t)(((uint8_t)1<<temp_bit_nums) - (uint8_t)1); \
         } \
         ret=temp._var; \
     } \
@@ -32,7 +32,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 16 ) \
         { \
-            temp.pad&= (((uint16_t)1)<<temp_bit_nums) - ((uint16_t)1); \
+            temp.pad&= (uint16_t)(((uint16_t)1<<temp_bit_nums) - (uint16_t)1); \
         } \
         ret=temp._var; \
     } \
@@ -47,7 +47,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 32 ) \
         { \
-            temp.pad&= (((uint32_t)1)<<temp_bit_nums) - ((uint32_t)1); \
+            temp.pad&= (uint32_t)(((uint32_t)1<<temp_bit_nums) - (uint32_t)1); \
         } \
         ret=temp._var; \
     } \
@@ -62,7 +62,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 64 ) \
         { \
-            temp.pad&= (((uint64_t)1)<<temp_bit_nums) - ((uint64_t)1); \
+            temp.pad&= (uint64_t)(((uint64_t)1<<temp_bit_nums) - (uint64_t)1); \
         } \
         ret=temp._var; \
     } \
@@ -86,7 +86,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 8 ) \
         { \
-            temp.pad&= ((uint8_t)-1)<<temp_bit_nums; \
+            temp.pad&= (uint8_t)((uint8_t)-1<<temp_bit_nums); \
         } \
         else \
         { \
@@ -105,7 +105,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 16 ) \
         { \
-            temp.pad&= ((uint16_t)-1)<<temp_bit_nums; \
+            temp.pad&= (uint16_t)((uint16_t)-1<<temp_bit_nums); \
         } \
         else \
         { \
@@ -124,7 +124,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 32 ) \
         { \
-            temp.pad&= ((uint32_t)-1)<<temp_bit_nums; \
+            temp.pad&= (uint32_t)((uint32_t)-1<<temp_bit_nums); \
         } \
         else \
         { \
@@ -143,7 +143,7 @@
         __auto_type temp_bit_nums=(bit_nums); \
         if ( temp_bit_nums < 64 ) \
         { \
-            temp.pad&= ((uint64_t)-1)<<temp_bit_nums; \
+            temp.pad&= (uint64_t)((uint64_t)-1<<temp_bit_nums); \
         } \
         else \
         { \
