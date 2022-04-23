@@ -44,7 +44,7 @@ do \
 { \
     __asm__ volatile \
         ( \
-         "movq  $1, %[mutex]" \
+         "movq  $0, %[mutex]" \
          :[mutex]"=m"(x) \
          : \
          :"memory" \

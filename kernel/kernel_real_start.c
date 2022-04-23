@@ -86,7 +86,7 @@ void thread1()
     {
         (*(char (*)[80*25*2])0xb8000)[i]='x';
         i+=2;
-        for ( volatile size_t i=0; i<(1<<30); ++i )
+        for ( volatile size_t i=0; i<(1<<25); ++i )
         {
         }
     }
@@ -94,12 +94,12 @@ void thread1()
 
 void thread2()
 {
-    static size_t i=80*25-2;
+    static size_t i=80*25*2-2;
     while (1)
     {
         (*(char (*)[80*25*2])0xb8000)[i]='y';
         i-=2;
-        for ( volatile size_t i=0; i<(1<<30); ++i )
+        for ( volatile size_t i=0; i<(1<<25); ++i )
         {
         }
     }
