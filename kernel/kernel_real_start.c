@@ -46,6 +46,7 @@ static inline void new_thread(void * start, void *stack_top)
     if ( index_sched_threads == NULL )
     {
         index_sched_threads=&new_thread->node_sched_threads;
+        new_thread->node_sched_threads.next=new_thread->node_sched_threads.prev=&new_thread->node_sched_threads;
     }
     else
     {
@@ -136,6 +137,7 @@ void* timer_isr_helper()
         if ( current == next )
         {
             index_sched_threads=&running->node_sched_threads;
+            running->node_sched_threads.next=running->node_sched_threads.prev=&running->node_sched_threads;
         }
         else
         {
