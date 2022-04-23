@@ -8,6 +8,11 @@
 
 #define STACK_SIZE 4096
 
+extern uint64_t **const timer_rsp;
+extern const size_t cores_num;
+extern uint8_t (*const core_stacks)[CORE_STACK_SIZE];
+
+
 typedef struct Thread Thread;
 struct Thread
 {
@@ -140,5 +145,6 @@ void* timer_isr_helper()
     }
     TSL_UNLOCK(sched_threads_mutex);
     Thread *const new_running=running_threads[core_id]=nhlist_entry(current, Thread, node_sched_threads);
+    *timer_rsp[core_id]=(uint64_t)&new_running->stack_end;
     return (void*)((const uint8_t *)new_running->stack_end-5*8-15*8);
 }

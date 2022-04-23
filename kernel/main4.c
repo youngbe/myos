@@ -45,6 +45,25 @@ struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
     uint32_t reserve;
 };
 
+struct __attribute__ ((packed, aligned(32))) TSS64
+{
+    uint32_t reserved0;
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved1;
+    uint64_t ist1;
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved2;
+    uint16_t reserved3;
+    uint16_t io_map_base_address;
+};
+
 
 // 输入
 __attribute__((section(".text.entry_point"), noreturn)) void _start(const Memory_Block *const blocks, const size_t blocks_num);
@@ -52,12 +71,14 @@ extern int __kernel_end[];
 void kernel_real_start();
 void empty_isr();
 void timer_isr();
+void keyboard_isr();
 // Memory Map 信息 ( 16Mb以下)
 // 64K可用栈 16Mb以下
 // 覆盖所有可访问物理地址的直接映射表 16Mb以下
 // 加载的内核 16MB以上，对齐4K，在可用内存页中
 
 // 输出
+size_t cores_num;
 static struct GDT __attribute__((aligned(32))) gdt=
 {
     // NULL Descriptor
@@ -79,9 +100,10 @@ static struct __attribute__((packed))
 } idt __attribute__((aligned (32))) =
 {
     {
-        [0 ... 31]={0, __CS, 2, 0b10001110, 0, 0 ,0},
+        [0 ... 31]={0, __CS, 0, 0b10001110, 0, 0 ,0},
+        // 时钟中断，使用ist1
         [32]={0, __CS, 1, 0b10001110, 0, 0 ,0},
-        [33 ... 255]={0, __CS, 2, 0b10001110, 0, 0 ,0}
+        [33 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0}
     }
 };
 size_t free_pages_num=0;
@@ -90,7 +112,19 @@ uint64_t (*page_tables)[512];
 uint64_t (**free_page_tables)[512];
 size_t free_page_tables_num;
 uint_fast16_t *pte_nums;
-// 内核栈
+uint64_t **timer_rsp;
+uint8_t (*core_stacks)[CORE_STACK_SIZE];
+// 内核栈 tsss
+
+
+/* virtual memory map:
+ * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS timer_rsp 内核栈)
+ * 4T-32T 内核heap
+ * 32T-64T user data text rodata bss
+ * 64T-248T user malloc
+ * 248T-256T user stack
+ * */
+
 
 static inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size_t index, const uint64_t start, const uint64_t end, const uint32_t type);
 static inline void* malloc_mark(size_t const size, size_t const p2align, const uint32_t type, Memory_Block *const blocks, size_t *const blocks_num);
@@ -102,14 +136,6 @@ static inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, u
 static inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
 #define MAX_BLOCKS_NUM 512
 
-/* virtual memory map:
- * 0-4T kernel text data rodata page_tables free_pages
- * 4T-32T kernel heap stack
- * 30T-32T kernel stack
- * 32T-64T user data text rodata bss
- * 64T-248T user malloc
- * 248T-256T user stack
- * */
 
 
 __attribute__((noreturn))
@@ -120,6 +146,11 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
         // 内核加载位置aligned不足
         kernel_abort("Error in init!");
     }
+
+    // 获取内核逻辑核心数
+    cores_num=8;
+    
+    const size_t core_id=0;
 
 
     // type:0 空闲块
@@ -173,7 +204,9 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
     }
 
 
-
+    // 将一部分内存固化（0-4T）
+    // 实际上只需要固化内核代码和page_tables
+    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,timer_rsp,内核栈，这是为了方便起见
 
     // 可用块中删除内核代码，并加入到固化块
     for ( size_t i=0; i<usable_blocks_num; ++i )
@@ -209,6 +242,26 @@ label_next0:
         memset(pte_nums, 0, sizeof(*pte_nums)*free_page_tables_num);
     }
 
+    struct TSS64*const tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
+#if CORE_STACK_SIZE%16 != 0
+    CORE_STACK_SIZE必须对齐16字节
+#endif
+    core_stacks=(uint8_t (*)[CORE_STACK_SIZE])malloc_mark(cores_num*CORE_STACK_SIZE, 5, 1, usable_blocks, &usable_blocks_num);
+    timer_rsp=(uint64_t **)malloc_mark(cores_num*sizeof(uint64_t *), 3, 1, usable_blocks, &usable_blocks_num);
+    for ( size_t i=0; i<cores_num; ++i)
+    {
+        timer_rsp[i]=&tsss[i].ist1;
+        tsss[i]=(struct TSS64)
+        {
+            0,
+            (uint64_t)&core_stacks[i+1], 0, 0,
+            0,
+            (uint64_t)&core_stacks[i+1], 0, 0, 0, 0, 0, 0,
+            0, 0, 0
+        };
+    }
+    
+
     // free page
     {
         size_t const max_free_pages_num=calc_free_pages_num(usable_blocks, usable_blocks_num);
@@ -226,7 +279,7 @@ label_next0:
     }
     pte_nums[64]=64;
     map_page_4k(0xb8000, 0xb8000, &page_tables[64]);
-    // 遍历一边固化页(free_pages 以及 内核代码)
+    // 遍历一边固化页
     for ( size_t i=0; i<usable_blocks_num; ++i )
     {
         if ( usable_blocks[i].type == 1 )
@@ -245,19 +298,9 @@ label_next0:
             }
         }
     }
-    // 内核栈
-    {
-        if ( free_pages_num == 0 )
-        {
-            kernel_abort("Error in init!");
-        }
-        uint64_t const stack_page=free_pages[--free_pages_num];
-        // map to 32T
-        map_page_2m(((uint64_t)1<<45)-((uint64_t)1<<21), stack_page, &page_tables[64]);
-    }
 
 
-    // gdt idt tss初始化
+    // 加载gdtr
     {
         struct __attribute__((packed))
         {
@@ -288,7 +331,7 @@ label_next0:
                 :"rax"
                 );
     }
-    // 初始化idt
+    // 初始化idt, 加载idtr
     {
         
         for (size_t i=0; i<256; ++i)
@@ -314,14 +357,27 @@ label_next0:
                 :[idtr]"m"(idtr), "m"(idt)
                 :);
     }
+    // 加载tr
+    {
+        gdt.tssl_d.base0=(uint16_t)(uintptr_t)&tsss[core_id];
+        gdt.tssl_d.base1=(uint8_t)(((uintptr_t)&tsss[core_id])>>16);
+        gdt.tssl_d.base2=(uint8_t)(((uintptr_t)&tsss[core_id])>>24);
+        gdt.tssh_d.limit0=(uint16_t)(((uintptr_t)&tsss[core_id])>>32);
+        gdt.tssh_d.base0=(uint16_t)(((uintptr_t)&tsss[core_id])>>48);
+        __asm__ volatile(
+                "ltrw   %%ax"
+                :
+                :"m"(gdt), "a"((uint16_t)__TSS)
+                :);
+    }
     // 切换cr3，切换栈，跳转执行
     __asm__ volatile (
             "movq   %[cr3], %%cr3\n\t"
-            "movq   $0x1FFFFFFFFFF8, %%rsp\n\t"
+            "movq   %[rsp], %%rsp\n\t"
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64])
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"(&core_stacks[core_id+1])
             :"memory"
             );
     __builtin_unreachable();

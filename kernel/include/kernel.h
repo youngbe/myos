@@ -1,18 +1,14 @@
 #pragma once
 #include <stddef.h>
 
-#define GDT_ENTRY_NULL      0
-#define GDT_ENTRY_CS        1
-#define GDT_ENTRY_CS_USER   2
-#define GDT_ENTRY_DS_USER   3
-#define GDT_ENTRY_TSS       4
+#define __CS        (0<<3)
+#define __CS_USER   ((1<<3)|0b11)
+#define __DS        (2<<3)
+#define __DS_USER   ((3<<3)|0b11)
+#define __TSS       (4<<3)
 
-#define __CS        (GDT_ENTRY_CS<<3)
-#define __CS_USER   ((GDT_ENTRY_CS_USER<<3)|0b11)
-#define __DS        (GDT_ENTRY_NULL<<3)
-#define __DS_USER   ((GDT_ENTRY_DS_USER<<3)|0b11)
-#define __TSS       (GDT_ENTRY_TSS<<3)
-
+// 内核栈(每个逻辑核心一个)的大小，必须对齐16字节
+#define CORE_STACK_SIZE 8192
 
 static inline size_t get_coreid()
 {

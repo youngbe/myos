@@ -45,5 +45,9 @@ timer_isr:
     jz      1f
     movq    %rax, %rsp
 1:
+    xorq    %rdx, %rdx
+    xorq    %rax, %rax
+    movl    $0x80b, %ecx
+    wrmsr
     pop_all_registers
     iretq
