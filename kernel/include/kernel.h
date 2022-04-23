@@ -1,9 +1,9 @@
 #pragma once
 #include <stddef.h>
 
-#define __CS        (0<<3)
-#define __CS_USER   ((1<<3)|0b11)
-#define __DS        (2<<3)
+#define __CS        (1<<3)
+#define __CS_USER   ((2<<3)|0b11)
+#define __DS        (0<<3)
 #define __DS_USER   ((3<<3)|0b11)
 #define __TSS       (4<<3)
 

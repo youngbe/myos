@@ -365,9 +365,9 @@ label_next0:
         gdt.tssh_d.limit0=(uint16_t)(((uintptr_t)&tsss[core_id])>>32);
         gdt.tssh_d.base0=(uint16_t)(((uintptr_t)&tsss[core_id])>>48);
         __asm__ volatile(
-                "ltrw   %%ax"
+                "ltrw   %[tss]"
                 :
-                :"m"(gdt), "a"((uint16_t)__TSS)
+                :"m"(gdt), [tss]"r"((uint16_t)__TSS)
                 :);
     }
     // 切换cr3，切换栈，跳转执行
