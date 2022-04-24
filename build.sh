@@ -80,7 +80,9 @@ else
         -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
         kernel/*.c kernel/*.s kernel/mm/*.c  \
         -Og -g3 -o out/kernel.elf
-    $OBJCOPY --adjust-vma 0x1000000 out/kernel.elf out/kernel_debug.elf
+    echo "" > out/empty.s
+    $AS --64 out/empty.s -o out/empty.o
+    $LD -s -e 0 out/empty.o -o out/empty.elf
 fi
 $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .rodata --set-section-flags .rodata=load,content,alloc \

@@ -1,0 +1,73 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "gdb",
+            "request": "attach",
+            "name": "Native debug",
+            "executable": "${workspaceRoot}/out/empty.elf",
+            "target": "192.168.1.211:55555",
+            "remote": true,
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText",
+            "autorun": [
+                "set disassemble-next-line on",
+                "shell echo set \\$text=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.text' | awk -F ']' '{print $2}' | awk '{print $3}') > ${workspaceRoot}/temp_debug_address.txt",
+                "shell echo set \\$data=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.data' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
+                "shell echo set \\$rodata=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.rodata' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
+                "shell echo set \\$bss=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.bss' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
+                "shell echo set \\$rela_dyn=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.rela.dyn' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
+                "source ${workspaceRoot}/temp_debug_address.txt",
+                "shell rm ${workspaceRoot}/temp_debug_address.txt",
+                "add-symbol-file ${workspaceRoot}/out/kernel.elf -s .text $text+0x1000000 -s .data $data+0x1000000 -s .rodata $rodata+0x1000000 -s .bss $bss+0x1000000 -s .rela.dyn $rela_dyn+0x1000000",
+                "break main"
+            ]
+        },
+        {
+            "name": "官方debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/out/empty.elf",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerServerAddress": "192.168.1.211:55555",
+            "setupCommands": [
+                {
+                    "text": "set disassemble-next-line on"
+                },
+                {
+                    "text": "shell echo set \\$text=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.text' | awk -F ']' '{print $2}' | awk '{print $3}') > ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "shell echo set \\$data=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.data' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "shell echo set \\$rodata=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.rodata' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "shell echo set \\$bss=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.bss' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "shell echo set \\$rela_dyn=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.rela.dyn' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "source ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "shell rm ${workspaceRoot}/temp_debug_address.txt"
+                },
+                {
+                    "text": "add-symbol-file ${workspaceRoot}/out/kernel.elf -s .text $text+0x1000000 -s .data $data+0x1000000 -s .rodata $rodata+0x1000000 -s .bss $bss+0x1000000 -s .rela.dyn $rela_dyn+0x1000000"
+                }
+            ],
+            "targetArchitecture": "x86_64"
+        }
+    ]
+}
