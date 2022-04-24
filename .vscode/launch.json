@@ -15,6 +15,7 @@
             "valuesFormatting": "parseText",
             "autorun": [
                 "set disassemble-next-line on",
+                "set output-radix 16",
                 "shell echo set \\$text=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.text' | awk -F ']' '{print $2}' | awk '{print $3}') > ${workspaceRoot}/temp_debug_address.txt",
                 "shell echo set \\$data=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.data' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
                 "shell echo set \\$rodata=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.rodata' | awk -F ']' '{print $2}' | awk '{print $3}') >> ${workspaceRoot}/temp_debug_address.txt",
@@ -41,6 +42,9 @@
             "setupCommands": [
                 {
                     "text": "set disassemble-next-line on"
+                },
+                {
+                    "text": "set output-radix 16"
                 },
                 {
                     "text": "shell echo set \\$text=0x$(readelf -WS ${workspaceRoot}/out/kernel.elf | grep '\\.text' | awk -F ']' '{print $2}' | awk '{print $3}') > ${workspaceRoot}/temp_debug_address.txt"
