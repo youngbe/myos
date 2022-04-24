@@ -1,4 +1,11 @@
 #!/bin/bash
+DEBUG=0
+for ((i=0;i<$#;++i))
+do
+    if [ "${@:$i+1:1}" == "--debug" ]; then
+        DEBUG=1
+    fi
+done
 
 # GCC 通用 CFLAGS ，主要是开一些优化，关闭一些安全机制提升程序效率
 GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" \
@@ -63,15 +70,18 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@
     boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c boot/error.c \
     -o out/bootloader.bin
 
-
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-    -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-    kernel/*.c kernel/*.s kernel/mm/*.c  \
-    -o out/kernel.elf
-#$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-#    -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-#    kernel/*.c kernel/*.s kernel/mm/*.c  \
-#    -g3 -Ttext 0x1000000 -o out/kernel_debug.elf
+if [ $DEBUG -eq 0 ]; then
+    $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+        -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
+        kernel/*.c kernel/*.s kernel/mm/*.c  \
+        -o out/kernel.elf
+else
+    $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+        -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
+        kernel/*.c kernel/*.s kernel/mm/*.c  \
+        -Og -g3 -o out/kernel.elf
+    $OBJCOPY --adjust-vma 0x1000000 out/kernel.elf out/kernel_debug.elf
+fi
 $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .rodata --set-section-flags .rodata=load,content,alloc \
     -j .data --set-section-flags .data=load,content,alloc \
