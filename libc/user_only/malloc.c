@@ -39,7 +39,7 @@
 
 typedef struct Block_Header Block_Header;
 typedef struct Block Block;
-struct __attribute__((aligned(MALLOC_ALIGNMENT))) Block_Header
+struct Block_Header
 {
     uintptr_t size;
     // == 0 空闲 ==1 已分配
@@ -48,7 +48,7 @@ struct __attribute__((aligned(MALLOC_ALIGNMENT))) Block_Header
     struct list_head node_free_blocks;
 };
 
-struct __attribute__((aligned(MALLOC_ALIGNMENT))) Block
+struct Block
 {
     Block_Header header;
     uint8_t content[] __attribute__((aligned(MALLOC_ALIGNMENT)));

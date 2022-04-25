@@ -97,28 +97,25 @@ static struct GDT __attribute__((aligned(32))) gdt=
 static struct __attribute__((packed))
 {
     struct Interrupt_Gate_Descriptor64 igds[256];
-} idt __attribute__((aligned (32))) =
-{
-    {
-        [0 ... 31]={0, __CS, 0, 0b10001110, 0, 0 ,0},
-        // 时钟中断，使用ist1
-        [32]={0, __CS, 1, 0b10001110, 0, 0 ,0},
-        [33 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0}
-    }
-};
+} idt __attribute__((aligned (32)))={{
+    [0 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0}
+    }};
 size_t free_pages_num=0;
 uint64_t *free_pages;
 uint64_t (*page_tables)[512];
 uint64_t (**free_page_tables)[512];
 size_t free_page_tables_num;
 uint_fast16_t *pte_nums;
-uint64_t **timer_rsp;
-uint8_t (*core_stacks)[CORE_STACK_SIZE];
-// tsss, 内核页表
+struct TSS64 *tsss;
+struct __attribute__((aligned(16)))
+{
+    uint8_t empty_stack[EMPTY_STACK_SIZE];
+}* empty_stacks;
+// 内核页表
 
 
 /* virtual memory map:
- * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS timer_rsp 内核栈)
+ * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS 内核栈)
  * 4T-32T 内核heap
  * 32T-64T user data text rodata bss
  * 64T-248T user malloc
@@ -206,7 +203,7 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
 
     // 将一部分内存固化（0-4T）
     // 实际上只需要固化内核代码和page_tables
-    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,timer_rsp,内核栈，这是为了方便起见
+    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,内核栈，这是为了方便起见
 
     // 可用块中删除内核代码，并加入到固化块
     for ( size_t i=0; i<usable_blocks_num; ++i )
@@ -232,24 +229,17 @@ label_next0:
     free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-65), 3, 1, usable_blocks, &usable_blocks_num);
 
     struct TSS64*const tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
-#if CORE_STACK_SIZE%16 != 0
-    CORE_STACK_SIZE必须对齐16字节;
-#endif
-    core_stacks=(uint8_t (*)[CORE_STACK_SIZE])malloc_mark(cores_num*CORE_STACK_SIZE, 5, 1, usable_blocks, &usable_blocks_num);
-    timer_rsp=(uint64_t **)malloc_mark(cores_num*sizeof(uint64_t *), 3, 1, usable_blocks, &usable_blocks_num);
-    for ( size_t i=0; i<cores_num; ++i)
+    empty_stacks=malloc_mark(cores_num*sizeof(*empty_stacks), 4, 1, usable_blocks, &usable_blocks_num);
+    memset(tsss, 0, cores_num*sizeof(struct TSS64));
+    tsss[core_id]=(struct TSS64)
     {
-        timer_rsp[i]=&tsss[i].ist1;
-        tsss[i]=(struct TSS64)
-        {
+        0,
+            (uint64_t)&empty_stacks[core_id+1], 0, 0,
             0,
-            (uint64_t)&core_stacks[i+1], 0, 0,
-            0,
-            (uint64_t)&core_stacks[i+1], 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0,
             0, 0, 0
-        };
-    }
-    
+    };
+
 
     // free page
     {
@@ -372,7 +362,7 @@ label_next0:
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&core_stacks[core_id+1]-8)
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&empty_stacks[core_id+1]-8)
             :"memory"
             );
     __builtin_unreachable();

@@ -7,13 +7,13 @@
 #define __DS_USER   ((3<<3)|0b11)
 #define __TSS       (4<<3)
 
-// 内核栈(每个逻辑核心一个)的大小，必须对齐16字节
-// 当使用系统调用时，就从进程的用户态内存切换到这里
-#define CORE_STACK_SIZE 8192
-// 时钟中断栈，每个线程一个，用来保存线程的上下文
-#define TIMER_STACK_SIZE 4096
-// 每个线程的栈的大小，8M
-#define THREAD_STACK_SIZE ((size_t)1<<23)
+// 内核栈(每个线程一个)的大小，必须对齐16字节
+// 当使用系统调用时，或者发生时钟中断时，就从进程的用户态内存切换到这里
+#define KERNEL_STACK_SIZE 0x10000
+// 用户栈(每个线程一个)的大小，8M
+#define USER_STACK_SIZE ((size_t)1<<23)
+// CPU运行空线程时运行的栈
+#define EMPTY_STACK_SIZE 0x1000
 
 static inline size_t get_coreid()
 {

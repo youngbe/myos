@@ -35,19 +35,38 @@
 
 
     .code64
-    .section .text
+    .text
     .p2align 5
     .globl timer_isr
 timer_isr:
     push_all_registers
-    call    timer_isr_helper
-    testq   %rax, %rax
-    jz      1f
-    movq    %rax, %rsp
+
+    // 上锁
+    movq    $1, %rbx
 1:
+    xorq    %rax, %rax
+    cmpxchgq    %rbx, .Lsched_threads_mutex(%rip)
+    jne     1b
+
+    cmpq    $0, index_sched_threads(%rip)
+    je     1f
+
+    movq    %rsp, %rdi
+    call    timer_isr_helper
+    movq    %rax, %rsp
+
+
+1:
+    movq    $0, .Lsched_threads_mutex(%rip)
     xorq    %rdx, %rdx
     xorq    %rax, %rax
     movl    $0x80b, %ecx
     wrmsr
     pop_all_registers
     iretq
+
+
+    .data
+    .p2align 5
+.Lsched_threads_mutex:
+    .quad 0
