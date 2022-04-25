@@ -228,7 +228,7 @@ label_next0:
     pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*(free_page_tables_num-64), 3, 1, usable_blocks, &usable_blocks_num)-64;
     free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-65), 3, 1, usable_blocks, &usable_blocks_num);
 
-    struct TSS64*const tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
+    tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
     empty_stacks=malloc_mark(cores_num*sizeof(*empty_stacks), 4, 1, usable_blocks, &usable_blocks_num);
     memset(tsss, 0, cores_num*sizeof(struct TSS64));
     tsss[core_id]=(struct TSS64)
