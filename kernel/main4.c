@@ -132,8 +132,8 @@ static inline size_t calc_free_pages_num(const Memory_Block *const blocks, size_
 static inline void init_free_pages(const Memory_Block *const blocks, size_t const blocks_num);
 static inline uint64_t (*new_pt())[512];
 static inline uint_fast16_t * get_pte_num(uint64_t (*)[512]);
-static inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
-static inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
+static inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page);
+static inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page);
 #define MAX_BLOCKS_NUM 512
 
 
@@ -273,7 +273,7 @@ label_next0:
     {
         free_page_tables[i]=&page_tables[free_page_tables_num-i+64];
     }
-    map_page_4k(0xb8000, 0xb8000, &page_tables[64]);
+    map_page_4k(0xb8000, 0xb8000);
     // 遍历一边固化页
     for ( size_t i=0; i<usable_blocks_num; ++i )
     {
@@ -288,7 +288,7 @@ label_next0:
                 {
                     kernel_abort("Error in init!");
                 }
-                map_page_2m(start, start, &page_tables[64]);
+                map_page_2m(start, start);
                 start+=(uint64_t)1<<21;
             }
         }
@@ -460,7 +460,7 @@ inline void mark(Memory_Block*const blocks, size_t *const blocks_num, const size
     blocks[i+2].type=0;
 }
 
-inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512])
+inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page)
 {
     if ( v_page >= (((uint64_t)1)<<48) || phy_page >= (((uint64_t)1)<<48) )
     {
@@ -472,11 +472,8 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t
     }
     // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 2mb物理页
     uint64_t i=v_page>>39;
-    uint64_t (*const pt1)[512]=(uint64_t (*)[512])REMOVE_BITS_LOW((*cr3)[i], 12);
-    if ( pt1 == NULL )
-    {
-        kernel_abort("Error in init!");
-    }
+    // i 一定小于64
+    uint64_t (*const pt1)[512]=&page_tables[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
@@ -497,7 +494,7 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t
     ++*get_pte_num(pt2);
 }
 
-inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512])
+inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page)
 {
     if ( v_page >= (((uint64_t)1)<<48) || phy_page >= (((uint64_t)1)<<48) )
     {
@@ -509,11 +506,8 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
     }
     // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 3级页表 -> 4k物理页
     uint64_t i=v_page>>39;
-    uint64_t (*const pt1)[512]=(uint64_t (*)[512])REMOVE_BITS_LOW((*cr3)[i], 12);
-    if ( pt1 == NULL )
-    {
-        kernel_abort("Error in init!");
-    }
+    // i 一定小于64
+    uint64_t (*const pt1)[512]=&page_tables[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
