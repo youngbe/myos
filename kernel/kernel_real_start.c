@@ -54,7 +54,7 @@ static inline void new_thread(void * start)
     {
         kernel_abort("Memory not enougth!");
     }
-    new_thread->rsp=(void*)&new_thread->kernel_stack_end[-20*8];
+    new_thread->rsp=(void*)(new_thread->kernel_stack_end-20*8);
     // %rip
     ((uint64_t *)new_thread->rsp)[15]=(uint64_t)start;
     // %cs
