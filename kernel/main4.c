@@ -228,7 +228,7 @@ label_next0:
         kernel_abort("Error in init!");
     }
     page_tables=malloc_mark(free_page_tables_num*sizeof(*page_tables), 12, 1, usable_blocks, &usable_blocks_num);
-    pte_nums=malloc_mark(sizeof(*pte_nums)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
+    pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*(free_page_tables_num-64), 3, 1, usable_blocks, &usable_blocks_num)-64;
     free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-65), 3, 1, usable_blocks, &usable_blocks_num);
 
     struct TSS64*const tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
@@ -265,8 +265,7 @@ label_next0:
     memset(pte_nums, 0, sizeof(*pte_nums)*free_page_tables_num);
     for ( size_t i=0; i<64; ++i )
     {
-        page_tables[64][i]=(uint64_t)&page_tables[i]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
-        pte_nums[i]=1;
+        page_tables[64][i]=(uint64_t)&page_tables[i]|((uint64_t)1<<0);
     }
     pte_nums[64]=64;
     free_page_tables_num-=65;
@@ -373,7 +372,7 @@ label_next0:
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"(&core_stacks[core_id+1])
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&core_stacks[core_id+1]-8)
             :"memory"
             );
     __builtin_unreachable();
@@ -483,8 +482,7 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t
     if ( (*pt1)[i] == 0 )
     {
         pt2=new_pt();
-        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
-        ++*get_pte_num(pt1);
+        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0);
     }
     else
     {
@@ -495,7 +493,7 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page, uint64_t
     {
         return;
     }
-    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<7);
     ++*get_pte_num(pt2);
 }
 
@@ -521,8 +519,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
     if ( (*pt1)[i] == 0 )
     {
         pt2=new_pt();
-        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
-        ++*get_pte_num(pt1);
+        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0);
     }
     else
     {
@@ -533,7 +530,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
     if ( (*pt2)[i] == 0 )
     {
         pt3=new_pt();
-        (*pt2)[i]=(uint64_t)pt3|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
+        (*pt2)[i]=(uint64_t)pt3|((uint64_t)1<<0);
         ++*get_pte_num(pt2);
     }
     else
@@ -545,7 +542,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page, uint64_t
     {
         return;
     }
-    (*pt3)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
+    (*pt3)[i]=phy_page|((uint64_t)1<<0);
     ++*get_pte_num(pt3);
 }
 
@@ -560,6 +557,10 @@ inline uint64_t (*new_pt())[512]
 
 inline uint_fast16_t * get_pte_num(uint64_t (*pt)[512])
 {
+    if ( pt-page_tables < 64 )
+    {
+        kernel_abort("get invalid pte_nums!");
+    }
     return &pte_nums[pt-page_tables];
 }
 
@@ -584,18 +585,19 @@ inline size_t calc_free_pages_num(const Memory_Block *const blocks, size_t const
 inline void init_free_pages(const Memory_Block *const blocks, size_t const blocks_num)
 {
     free_pages_num=0;
-    for ( size_t i=0; i<blocks_num; ++i )
+    for ( size_t i=blocks_num; i!=0; )
     {
+        --i;
         if (blocks[i].type != 0)
         {
             continue;
         }
-        uint64_t start=REMOVE_BITS_LOW(blocks[i].base-1, 21) + ((uint64_t)1<<21);
-        uint64_t const end=REMOVE_BITS_LOW(blocks[i].base+blocks[i].size, 21);
-        while ( end > start )
+        uint64_t const start=REMOVE_BITS_LOW(blocks[i].base-1, 21) + ((uint64_t)1<<21);
+        uint64_t end=REMOVE_BITS_LOW(blocks[i].base+blocks[i].size, 21) - ((uint64_t)1<<21);
+        while ( end >= start )
         {
-            free_pages[free_pages_num++]=start;
-            start+=(uint64_t)1<<21;
+            free_pages[free_pages_num++]=end;
+            end-=(uint64_t)1<<21;
         }
     }
 }

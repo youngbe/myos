@@ -29,12 +29,23 @@ extern size_t free_page_tables_num;
 extern uint_fast16_t *const pte_nums;
 
 
+static inline uint64_t (*get_cr3())[512]
+{
+    uint64_t (*cr3)[512];
+    __asm__ volatile(
+            "movq   %%cr3, %0"
+            :"=r"(cr3)
+            :
+            :);
+    return cr3;
+}
+
 static inline size_t calc_max_need_page_tables_num(uint64_t const base, uint64_t const limit);
 // 不会检查剩余空闲页表是否足够
 // 如果已经有映射，则报错
-static inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
+static inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page);
 //static inline void map_page_2m_user(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
-static inline uint64_t unmap_page_2m_kernel(const uint64_t v_page, uint64_t (*const cr3)[512]);
+static inline uint64_t unmap_page_2m_kernel(const uint64_t v_page);
 static inline uint_fast16_t * get_pte_num(uint64_t (*)[512]);
 
 
@@ -74,7 +85,7 @@ int alloc_pages_kernel(void *const base, const size_t num)
     }
     while ( 1 )
     {
-        map_page_2m_kernel(base_page, free_pages[--free_pages_num], &page_tables[64]);
+        map_page_2m_kernel(base_page, free_pages[--free_pages_num]);
         if ( base_page == limit_page )
         {
             break;
@@ -96,12 +107,6 @@ void free_pages_kernel(void *const base, const size_t num)
     {
         return;
     }
-    uint64_t (*cr3)[512];
-    __asm__ volatile(
-            "movq   %%cr3, %0"
-            :"=r"(cr3)
-            :
-            :);
     uint64_t base_page=(uint64_t)base;
     uint64_t const limit_page=base_page+((uint64_t)(num-1)<<21);
     TSL_LOCK_CONTENT(pages_mutex, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
@@ -110,7 +115,7 @@ void free_pages_kernel(void *const base, const size_t num)
             "=m"(*(uint_fast16_t (*)[])pte_nums));
     while ( true )
     {
-        free_pages[free_pages_num++]=unmap_page_2m_kernel(base_page, cr3);
+        free_pages[free_pages_num++]=unmap_page_2m_kernel(base_page);
         if ( base_page == limit_page )
         {
             break;
@@ -126,15 +131,15 @@ void free_pages_kernel(void *const base, const size_t num)
             "m"(*(uint_fast16_t (*)[])pte_nums));
 }
 
-inline uint64_t unmap_page_2m_kernel(const uint64_t v_page, uint64_t (*const cr3)[512])
+inline uint64_t unmap_page_2m_kernel(const uint64_t v_page)
 {
     uint64_t const i0=v_page>>39;
-    uint64_t (*const pt1)[512]=(uint64_t (*)[512])REMOVE_BITS_LOW((*cr3)[i0], 12);
+    // i0一定小于64
+    uint64_t (*const pt1)[512]=&page_tables[i0];
     if ( (uint64_t)pt1 == 0 )
     {
         kernel_abort("kernel free not exist page!");
     }
-    uint_fast16_t *const pt0_pte_num=get_pte_num(cr3);
 
     const uint64_t i1=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*const pt2)[512]=(uint64_t (*)[512])REMOVE_BITS_LOW((*pt1)[i1], 12);
@@ -142,7 +147,6 @@ inline uint64_t unmap_page_2m_kernel(const uint64_t v_page, uint64_t (*const cr3
     {
         kernel_abort("kernel free not exist page!");
     }
-    uint_fast16_t *const pt1_pte_num=get_pte_num(pt1);
 
     uint64_t const i2=GET_BITS_LOW(v_page>>21, 9);
     uint64_t const phy_page=REMOVE_BITS_LOW((*pt2)[i2], 21);
@@ -155,22 +159,7 @@ inline uint64_t unmap_page_2m_kernel(const uint64_t v_page, uint64_t (*const cr3
     if ( --*pt2_pte_num == 0 )
     {
         free_page_tables[free_page_tables_num++]=pt2;
-        if (--*pt1_pte_num == 0 )
-        {
-            free_page_tables[free_page_tables_num++]=pt1;
-            if ( --*pt0_pte_num == 0 )
-            {
-                free_page_tables[free_page_tables_num++]=cr3;
-            }
-            else
-            {
-                (*cr3)[i0]=0;
-            }
-        }
-        else
-        {
-            (*pt1)[i1]=0;
-        }
+        (*pt1)[i1]=0;
     }
     else
     {
@@ -179,28 +168,18 @@ inline uint64_t unmap_page_2m_kernel(const uint64_t v_page, uint64_t (*const cr3
     return phy_page;
 }
 
-inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512])
+inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page)
 {
-    // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 2mb物理页
+    // cr3(pt0) -> 0级页表.pt1 -> 1级页表.pt2 -> 2级页表 -> 2mb物理页
     uint64_t i=v_page>>39;
-    uint64_t (*pt1)[512];
-    if ( (*cr3)[i] == 0 )
-    {
-        pt1=free_page_tables[--free_page_tables_num];
-        (*cr3)[i]=(uint64_t)pt1|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
-        ++*get_pte_num(cr3);
-    }
-    else
-    {
-        pt1=(uint64_t (*)[512])REMOVE_BITS_LOW((*cr3)[i], 12);
-    }
+    // i一定小于64
+    uint64_t (*const pt1)[512]=&page_tables[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
     {
         pt2=free_page_tables[--free_page_tables_num];
-        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
-        ++*get_pte_num(pt1);
+        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0);
     }
     else
     {
@@ -211,7 +190,7 @@ inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page, u
     {
         kernel_abort("kernel map exist page!");
     }
-    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<7);
     ++*get_pte_num(pt2);
 }
 

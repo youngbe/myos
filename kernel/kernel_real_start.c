@@ -5,8 +5,8 @@
 #include <mm.h>
 #include <kernel.h>
 #include <tsl_lock.h>
+#include <bit.h>
 
-#define STACK_SIZE 4096
 
 extern uint64_t **const timer_rsp;
 extern const size_t cores_num;
@@ -14,10 +14,10 @@ extern uint8_t (*const core_stacks)[CORE_STACK_SIZE];
 
 
 typedef struct Thread Thread;
-struct Thread
+struct __attribute__((aligned(16))) Thread
 {
-    uint8_t stack[STACK_SIZE];
-    uint8_t stack_end[0] __attribute__((aligned(16)));
+    uint8_t timer_stack[TIMER_STACK_SIZE];
+    uint8_t timer_stack_end[0] __attribute__((aligned(16)));
     struct list_nohead node_sched_threads;
 };
 
@@ -32,7 +32,7 @@ static inline void new_thread(void * start, void *stack_top)
     {
         kernel_abort("Memory not enougth!");
     }
-    uint64_t *const rsp=(uint64_t *)((uint8_t *)new_thread->stack_end-40);
+    uint64_t *const rsp=(uint64_t *)((uint8_t *)new_thread->timer_stack_end-40);
     // %rip
     rsp[0]=(uint64_t)start;
     // %cs
@@ -60,14 +60,16 @@ void thread2();
 __attribute__((noreturn))
 void kernel_real_start()
 {
-    void *const thread1_stack=kmalloc_p2align(4096, 4);
-    void *const thread2_stack=kmalloc_p2align(4096, 4);
+    void *const thread1_stack=kmalloc(THREAD_STACK_SIZE);
+    void *const thread2_stack=kmalloc(THREAD_STACK_SIZE);
     if ( thread1_stack == NULL || thread2_stack == NULL )
     {
         kernel_abort("Memory not enougth!");
     }
-    new_thread((void*)thread1, (void*)((uint64_t)thread1_stack+4096));
-    new_thread((void*)thread2, (void*)((uint64_t)thread2_stack+4096));
+    new_thread((void*)thread1, (void*)
+            (REMOVE_BITS_LOW((uint64_t)thread1_stack+THREAD_STACK_SIZE+8, 4)-8) );
+    new_thread((void*)thread2, (void*)
+            (REMOVE_BITS_LOW((uint64_t)thread2_stack+THREAD_STACK_SIZE+8, 4)-8) );
     __asm__ volatile(
             "sti\n"
             "1:\n\t"
@@ -147,6 +149,6 @@ void* timer_isr_helper()
     }
     TSL_UNLOCK(sched_threads_mutex);
     Thread *const new_running=running_threads[core_id]=nhlist_entry(current, Thread, node_sched_threads);
-    *timer_rsp[core_id]=(uint64_t)&new_running->stack_end;
-    return (void*)((const uint8_t *)new_running->stack_end-5*8-15*8);
+    *timer_rsp[core_id]=(uint64_t)&new_running->timer_stack_end;
+    return (void*)((const uint8_t *)new_running->timer_stack_end-5*8-15*8);
 }
