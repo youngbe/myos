@@ -293,7 +293,7 @@ label_next0:
     }
     page_tables=malloc_mark(free_page_tables_num*sizeof(*page_tables), 12, 1, usable_blocks, &usable_blocks_num);
     pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
-    free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-1), 3, 1, usable_blocks, &usable_blocks_num);
+    free_page_tables=malloc_mark(sizeof(*free_page_tables)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
 
     // 分配TSS空间
     tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
@@ -307,19 +307,17 @@ label_next0:
         free_pages=(uint64_t *)malloc_mark(max_free_pages_num*sizeof(uint64_t), 3, 1, usable_blocks, &usable_blocks_num);
     }
 
+    // 初始化空闲页栈
+    init_free_pages(usable_blocks, usable_blocks_num);
+    // 从这里开始可以使用kmalloc，但注意分配到的是虚拟地址
 
 
     // 初始化页表
     memset(page_tables, 0, free_page_tables_num*sizeof(*page_tables));
-    pte_nums[0]=64;
-    memset(pte_nums+1, 0, sizeof(*pte_nums)*--free_page_tables_num);
-    for ( size_t i=0; i<64; ++i )
-    {
-        page_tables[0][i]=(uint64_t)&kernel_pt1s[i]|((uint64_t)1<<0);
-    }
+    memset(pte_nums, 0, sizeof(*pte_nums)*free_page_tables_num);
     for ( size_t i=0; i<free_page_tables_num; ++i )
     {
-        free_page_tables[i]=&page_tables[free_page_tables_num-i];
+        free_page_tables[i]=&page_tables[free_page_tables_num-i-1];
     }
     map_page_4k(0xb8000, 0xb8000);
     // 遍历一边固化页
@@ -342,20 +340,18 @@ label_next0:
         }
     }
 
-    // 初始化空闲页栈
-    init_free_pages(usable_blocks, usable_blocks_num);
-    // 从这里开始可以使用kmalloc，但分配到的是虚拟地址
 
     // 初始化TSS
-    memset(tsss, 0, cores_num*sizeof(struct TSS64));
-    tsss[core_id]=(struct TSS64)
+    for ( size_t i=0; i<cores_num; ++i )
     {
-        0,
-            (uint64_t)&halt_stacks[core_id+1], 0, 0,
+        tsss[i]=(struct TSS64){
             0,
-            0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0
-    };
+                (uint64_t)&halt_stacks[i+1], 0, 0,
+                0,
+                0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0
+        };
+    }
 
     // 加载gdtr
     {
@@ -434,7 +430,7 @@ label_next0:
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&halt_stacks[core_id+1]-8)
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&halt_pt0), [rsp]"r"((uint64_t)&halt_stacks[core_id+1]-8)
             :"memory"
             );
     __builtin_unreachable();
