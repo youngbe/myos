@@ -79,6 +79,7 @@ void keyboard_isr();
 
 // 输出
 size_t cores_num;
+
 static struct GDT __attribute__((aligned(32))) gdt=
 {
     // NULL Descriptor
@@ -97,21 +98,86 @@ static struct GDT __attribute__((aligned(32))) gdt=
 static struct __attribute__((packed))
 {
     struct Interrupt_Gate_Descriptor64 igds[256];
-} idt __attribute__((aligned (32)))={{
-    [0 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0}
-    }};
-size_t free_pages_num=0;
-uint64_t *free_pages;
+} idt __attribute__((aligned (32)))={{ [0 ... 255]={0, __CS, 0, 0b10001110, 0, 0 ,0} }};
+struct TSS64 *tsss;
+
+uint64_t kernel_pt1s[64][512] __attribute__((aligned(4096)))={{0}};
+const uint64_t halt_pt0[512] __attribute__((aligned(4096)))={
+    (uint64_t)&kernel_pt1s[0],
+    (uint64_t)&kernel_pt1s[1],
+    (uint64_t)&kernel_pt1s[2],
+    (uint64_t)&kernel_pt1s[3],
+    (uint64_t)&kernel_pt1s[4],
+    (uint64_t)&kernel_pt1s[5],
+    (uint64_t)&kernel_pt1s[6],
+    (uint64_t)&kernel_pt1s[7],
+    (uint64_t)&kernel_pt1s[8],
+    (uint64_t)&kernel_pt1s[9],
+    (uint64_t)&kernel_pt1s[10],
+    (uint64_t)&kernel_pt1s[11],
+    (uint64_t)&kernel_pt1s[12],
+    (uint64_t)&kernel_pt1s[13],
+    (uint64_t)&kernel_pt1s[14],
+    (uint64_t)&kernel_pt1s[15],
+    (uint64_t)&kernel_pt1s[16],
+    (uint64_t)&kernel_pt1s[17],
+    (uint64_t)&kernel_pt1s[18],
+    (uint64_t)&kernel_pt1s[19],
+    (uint64_t)&kernel_pt1s[20],
+    (uint64_t)&kernel_pt1s[21],
+    (uint64_t)&kernel_pt1s[22],
+    (uint64_t)&kernel_pt1s[23],
+    (uint64_t)&kernel_pt1s[24],
+    (uint64_t)&kernel_pt1s[25],
+    (uint64_t)&kernel_pt1s[26],
+    (uint64_t)&kernel_pt1s[27],
+    (uint64_t)&kernel_pt1s[28],
+    (uint64_t)&kernel_pt1s[29],
+    (uint64_t)&kernel_pt1s[30],
+    (uint64_t)&kernel_pt1s[31],
+    (uint64_t)&kernel_pt1s[32],
+    (uint64_t)&kernel_pt1s[33],
+    (uint64_t)&kernel_pt1s[34],
+    (uint64_t)&kernel_pt1s[35],
+    (uint64_t)&kernel_pt1s[36],
+    (uint64_t)&kernel_pt1s[37],
+    (uint64_t)&kernel_pt1s[38],
+    (uint64_t)&kernel_pt1s[39],
+    (uint64_t)&kernel_pt1s[40],
+    (uint64_t)&kernel_pt1s[41],
+    (uint64_t)&kernel_pt1s[42],
+    (uint64_t)&kernel_pt1s[43],
+    (uint64_t)&kernel_pt1s[44],
+    (uint64_t)&kernel_pt1s[45],
+    (uint64_t)&kernel_pt1s[46],
+    (uint64_t)&kernel_pt1s[47],
+    (uint64_t)&kernel_pt1s[48],
+    (uint64_t)&kernel_pt1s[49],
+    (uint64_t)&kernel_pt1s[50],
+    (uint64_t)&kernel_pt1s[51],
+    (uint64_t)&kernel_pt1s[52],
+    (uint64_t)&kernel_pt1s[53],
+    (uint64_t)&kernel_pt1s[54],
+    (uint64_t)&kernel_pt1s[55],
+    (uint64_t)&kernel_pt1s[56],
+    (uint64_t)&kernel_pt1s[57],
+    (uint64_t)&kernel_pt1s[58],
+    (uint64_t)&kernel_pt1s[59],
+    (uint64_t)&kernel_pt1s[60],
+    (uint64_t)&kernel_pt1s[61],
+    (uint64_t)&kernel_pt1s[62],
+    (uint64_t)&kernel_pt1s[63]
+};
 uint64_t (*page_tables)[512];
+uint_fast16_t *pte_nums;
 uint64_t (**free_page_tables)[512];
 size_t free_page_tables_num;
-uint_fast16_t *pte_nums;
-struct TSS64 *tsss;
-struct __attribute__((aligned(16)))
-{
-    uint8_t empty_stack[EMPTY_STACK_SIZE];
-}* empty_stacks;
 // 内核页表
+
+uint64_t *free_pages;
+size_t free_pages_num;
+
+struct __attribute__((aligned(16))){uint8_t padding[HALT_STACK_SIZE];}* halt_stacks;
 
 
 /* virtual memory map:
@@ -203,7 +269,7 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
 
     // 将一部分内存固化（0-4T）
     // 实际上只需要固化内核代码和page_tables
-    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,内核栈，这是为了方便起见
+    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,挂起核栈，这是为了方便起见
 
     // 可用块中删除内核代码，并加入到固化块
     for ( size_t i=0; i<usable_blocks_num; ++i )
@@ -218,50 +284,42 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
     kernel_abort("Error in init!");
 label_next0:
 
+    // 分配页表空间
     compiletime_assert(sizeof(*page_tables)==((size_t)1<<12), "Page Table size error!");
-    free_page_tables_num=calc_free_pages_num(usable_blocks, usable_blocks_num)<<2;
-    if ( free_page_tables_num <= 128 )
+    free_page_tables_num=calc_free_pages_num(usable_blocks, usable_blocks_num)<<3;
+    if ( free_page_tables_num <= 256 )
     {
         kernel_abort("Error in init!");
     }
     page_tables=malloc_mark(free_page_tables_num*sizeof(*page_tables), 12, 1, usable_blocks, &usable_blocks_num);
-    pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*(free_page_tables_num-64), 3, 1, usable_blocks, &usable_blocks_num)-64;
-    free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-65), 3, 1, usable_blocks, &usable_blocks_num);
+    pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
+    free_page_tables=malloc_mark(sizeof(void*)*(free_page_tables_num-1), 3, 1, usable_blocks, &usable_blocks_num);
 
+    // 分配TSS空间
     tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
-    empty_stacks=malloc_mark(cores_num*sizeof(*empty_stacks), 4, 1, usable_blocks, &usable_blocks_num);
-    memset(tsss, 0, cores_num*sizeof(struct TSS64));
-    tsss[core_id]=(struct TSS64)
-    {
-        0,
-            (uint64_t)&empty_stacks[core_id+1], 0, 0,
-            0,
-            0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0
-    };
+    // 分配挂起栈空间
+    halt_stacks=malloc_mark(cores_num*sizeof(*halt_stacks), 4, 1, usable_blocks, &usable_blocks_num);
 
 
-    // free page
+    // 分配空闲表空间
     {
         size_t const max_free_pages_num=calc_free_pages_num(usable_blocks, usable_blocks_num);
         free_pages=(uint64_t *)malloc_mark(max_free_pages_num*sizeof(uint64_t), 3, 1, usable_blocks, &usable_blocks_num);
-        init_free_pages(usable_blocks, usable_blocks_num);
     }
 
 
 
-    // init page tables
+    // 初始化页表
     memset(page_tables, 0, free_page_tables_num*sizeof(*page_tables));
-    memset(pte_nums, 0, sizeof(*pte_nums)*free_page_tables_num);
+    pte_nums[0]=64;
+    memset(pte_nums+1, 0, sizeof(*pte_nums)*--free_page_tables_num);
     for ( size_t i=0; i<64; ++i )
     {
-        page_tables[64][i]=(uint64_t)&page_tables[i]|((uint64_t)1<<0);
+        page_tables[0][i]=(uint64_t)&kernel_pt1s[i]|((uint64_t)1<<0);
     }
-    pte_nums[64]=64;
-    free_page_tables_num-=65;
     for ( size_t i=0; i<free_page_tables_num; ++i )
     {
-        free_page_tables[i]=&page_tables[free_page_tables_num-i+64];
+        free_page_tables[i]=&page_tables[free_page_tables_num-i];
     }
     map_page_4k(0xb8000, 0xb8000);
     // 遍历一边固化页
@@ -284,6 +342,20 @@ label_next0:
         }
     }
 
+    // 初始化空闲页栈
+    init_free_pages(usable_blocks, usable_blocks_num);
+    // 从这里开始可以使用kmalloc，但分配到的是虚拟地址
+
+    // 初始化TSS
+    memset(tsss, 0, cores_num*sizeof(struct TSS64));
+    tsss[core_id]=(struct TSS64)
+    {
+        0,
+            (uint64_t)&halt_stacks[core_id+1], 0, 0,
+            0,
+            0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0
+    };
 
     // 加载gdtr
     {
@@ -362,7 +434,7 @@ label_next0:
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
-            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&empty_stacks[core_id+1]-8)
+            :"X"(kernel_real_start), [cr3]"r"((uint64_t)&page_tables[64]), [rsp]"r"((uint64_t)&halt_stacks[core_id+1]-8)
             :"memory"
             );
     __builtin_unreachable();
@@ -460,10 +532,10 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page)
     {
         kernel_abort("Error in init!");
     }
-    // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 2mb物理页
+    // cr3(pt0) -> 0级页表.pt1 -> 1级页表.pt2 -> 2级页表 -> 2mb物理页
     uint64_t i=v_page>>39;
-    // i 一定小于64
-    uint64_t (*const pt1)[512]=&page_tables[i];
+    // i一定小于64
+    uint64_t (*const pt1)[512]=&kernel_pt1s[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
@@ -497,7 +569,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page)
     // cr3 -> 0级页表 -> 1级页表 -> 2级页表 -> 3级页表 -> 4k物理页
     uint64_t i=v_page>>39;
     // i 一定小于64
-    uint64_t (*const pt1)[512]=&page_tables[i];
+    uint64_t (*const pt1)[512]=&kernel_pt1s[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
@@ -541,10 +613,6 @@ inline uint64_t (*new_pt())[512]
 
 inline uint_fast16_t * get_pte_num(uint64_t (*pt)[512])
 {
-    if ( pt-page_tables < 64 )
-    {
-        kernel_abort("get invalid pte_nums!");
-    }
     return &pte_nums[pt-page_tables];
 }
 

@@ -12,8 +12,8 @@
 #define KERNEL_STACK_SIZE 0x10000
 // 用户栈(每个线程一个)的大小，8M
 #define USER_STACK_SIZE ((size_t)1<<23)
-// CPU运行空线程时运行的栈
-#define EMPTY_STACK_SIZE 0x1000
+// CPU挂起时运行的栈
+#define HALT_STACK_SIZE 0x1000
 
 static inline size_t get_coreid()
 {

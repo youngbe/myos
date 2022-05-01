@@ -28,10 +28,8 @@ struct __attribute__ ((packed, aligned(32))) TSS64
 
 extern struct TSS64 *const tsss;
 extern const size_t cores_num;
-extern struct __attribute__((aligned(16)))
-{
-    uint8_t empty_stack[EMPTY_STACK_SIZE];
-}* empty_stack;
+extern struct __attribute__((aligned(16))){uint8_t padding[HALT_STACK_SIZE];}*const
+halt_stack;
 
 
 typedef struct Thread Thread;

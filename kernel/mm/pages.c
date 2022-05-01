@@ -23,10 +23,12 @@
 
 extern size_t free_pages_num;
 extern uint64_t *const free_pages;
+
+extern uint64_t kernel_pt1s[64][512];
 extern uint64_t (*const page_tables)[512];
+extern uint_fast16_t *const pte_nums;
 extern uint64_t (**const free_page_tables)[512];
 extern size_t free_page_tables_num;
-extern uint_fast16_t *const pte_nums;
 
 
 static inline uint64_t (*get_cr3())[512]
@@ -83,7 +85,7 @@ int alloc_pages_kernel(void *const base, const size_t num)
         pages_mutex=TSL_UNLOCKED;
         return -1;
     }
-    while ( 1 )
+    while ( true )
     {
         map_page_2m_kernel(base_page, free_pages[--free_pages_num]);
         if ( base_page == limit_page )
@@ -135,7 +137,7 @@ inline uint64_t unmap_page_2m_kernel(const uint64_t v_page)
 {
     uint64_t const i0=v_page>>39;
     // i0一定小于64
-    uint64_t (*const pt1)[512]=&page_tables[i0];
+    uint64_t (*const pt1)[512]=&kernel_pt1s[i0];
     if ( (uint64_t)pt1 == 0 )
     {
         kernel_abort("kernel free not exist page!");
@@ -173,7 +175,7 @@ inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_page)
     // cr3(pt0) -> 0级页表.pt1 -> 1级页表.pt2 -> 2级页表 -> 2mb物理页
     uint64_t i=v_page>>39;
     // i一定小于64
-    uint64_t (*const pt1)[512]=&page_tables[i];
+    uint64_t (*const pt1)[512]=&kernel_pt1s[i];
     i=GET_BITS_LOW(v_page>>30, 9);
     uint64_t (*pt2)[512];
     if ( (*pt1)[i] == 0 )
