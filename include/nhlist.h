@@ -5,6 +5,7 @@
 */
 
 /*
+init_nhlist
 __nhlist_add
 nhlist_add
 nhlist_add_tail
@@ -27,6 +28,11 @@ nhlist_while_each_entry_reverse
 struct list_nohead {
     struct list_nohead *next, *prev;
 };
+
+static inline void init_nhlist(struct list_nohead **index, struct list_nohead *node)
+{
+    *index=node->next=node->prev=node;
+}
 
 static inline void __nhlist_add(struct list_nohead *_new,
         struct list_nohead *prev,

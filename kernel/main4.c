@@ -4,7 +4,7 @@
 
 #include <bit.h>
 
-#include <kernel.h>
+#include "puiblic.h"
 
 typedef struct Memory_Block Memory_Block;
 struct __attribute__((packed)) Memory_Block
@@ -45,25 +45,6 @@ struct __attribute__ ((packed)) Interrupt_Gate_Descriptor64
     uint32_t reserve;
 };
 
-struct __attribute__ ((packed, aligned(32))) TSS64
-{
-    uint32_t reserved0;
-    uint64_t rsp0;
-    uint64_t rsp1;
-    uint64_t rsp2;
-    uint64_t reserved1;
-    uint64_t ist1;
-    uint64_t ist2;
-    uint64_t ist3;
-    uint64_t ist4;
-    uint64_t ist5;
-    uint64_t ist6;
-    uint64_t ist7;
-    uint64_t reserved2;
-    uint16_t reserved3;
-    uint16_t io_map_base_address;
-};
-
 
 // 输入
 __attribute__((section(".text.entry_point"), noreturn)) void _start(const Memory_Block *const blocks, const size_t blocks_num);
@@ -71,7 +52,7 @@ extern int __kernel_end[];
 void kernel_real_start();
 void empty_isr();
 void timer_isr();
-void keyboard_isr();
+//void keyboard_isr();
 // Memory Map 信息 ( 16Mb以下)
 // 64K可用栈 16Mb以下
 // 覆盖所有可访问物理地址的直接映射表 16Mb以下
@@ -178,10 +159,11 @@ uint64_t *free_pages;
 size_t free_pages_num;
 
 struct __attribute__((aligned(16))){uint8_t padding[HALT_STACK_SIZE];}* halt_stacks;
+Thread ** running_threads;
 
 
 /* virtual memory map:
- * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS 内核栈)
+ * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS halt_stacks running_threads)
  * 4T-32T 内核heap
  * 32T-64T user data text rodata bss
  * 64T-248T user malloc
@@ -269,7 +251,7 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
 
     // 将一部分内存固化（0-4T）
     // 实际上只需要固化内核代码和page_tables
-    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,挂起核栈，这是为了方便起见
+    // 但我们在这里还固化了pte_nums,free_page_tables,free_pages,tss,挂起栈，running_threads，这是为了方便起见
 
     // 可用块中删除内核代码，并加入到固化块
     for ( size_t i=0; i<usable_blocks_num; ++i )
@@ -285,26 +267,30 @@ void main(const Memory_Block *const blocks, const size_t blocks_num)
 label_next0:
 
     // 分配页表空间
-    compiletime_assert(sizeof(*page_tables)==((size_t)1<<12), "Page Table size error!");
     free_page_tables_num=calc_free_pages_num(usable_blocks, usable_blocks_num)<<3;
     if ( free_page_tables_num <= 256 )
     {
         kernel_abort("Error in init!");
     }
-    page_tables=malloc_mark(free_page_tables_num*sizeof(*page_tables), 12, 1, usable_blocks, &usable_blocks_num);
-    pte_nums=(uint_fast16_t *)malloc_mark(sizeof(uint_fast16_t)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
-    free_page_tables=malloc_mark(sizeof(*free_page_tables)*free_page_tables_num, 3, 1, usable_blocks, &usable_blocks_num);
+    page_tables=(uint64_t (*)[512])malloc_mark(
+            sizeof(uint64_t [free_page_tables_num][512]), 12, 1, usable_blocks, &usable_blocks_num);
+    pte_nums=(uint_fast16_t *)malloc_mark(
+            sizeof(uint_fast16_t [free_page_tables_num]), 3, 1, usable_blocks, &usable_blocks_num);
+    free_page_tables=(uint64_t (**)[512])malloc_mark(
+            sizeof(uint64_t (*[free_page_tables_num])[512]), 3, 1, usable_blocks, &usable_blocks_num);
 
     // 分配TSS空间
-    tsss=(struct TSS64*)malloc_mark(cores_num*sizeof(struct TSS64), 5, 1, usable_blocks, &usable_blocks_num);
+    tsss=(struct TSS64*)malloc_mark(sizeof(struct TSS64 [cores_num]), 5, 1, usable_blocks, &usable_blocks_num);
     // 分配挂起栈空间
     halt_stacks=malloc_mark(cores_num*sizeof(*halt_stacks), 4, 1, usable_blocks, &usable_blocks_num);
+
+    running_threads=(Thread **)malloc_mark(sizeof(Thread *[core_nums]), 3, 1, usable_blocks, &usable_blocks);
 
 
     // 分配空闲表空间
     {
         size_t const max_free_pages_num=calc_free_pages_num(usable_blocks, usable_blocks_num);
-        free_pages=(uint64_t *)malloc_mark(max_free_pages_num*sizeof(uint64_t), 3, 1, usable_blocks, &usable_blocks_num);
+        free_pages=(uint64_t *)malloc_mark(sizeof(uint64_t [max_free_pages_num]), 3, 1, usable_blocks, &usable_blocks_num);
     }
 
     // 初始化空闲页栈
@@ -313,8 +299,8 @@ label_next0:
 
 
     // 初始化页表
-    memset(page_tables, 0, free_page_tables_num*sizeof(*page_tables));
-    memset(pte_nums, 0, sizeof(*pte_nums)*free_page_tables_num);
+    memset(page_tables, 0, sizeof(uint64_t [free_page_tables_num][512]));
+    memset(pte_nums, 0, sizeof(uint_fast16_t [free_page_tables_num]));
     for ( size_t i=0; i<free_page_tables_num; ++i )
     {
         free_page_tables[i]=&page_tables[free_page_tables_num-i-1];
@@ -351,6 +337,12 @@ label_next0:
                 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0
         };
+    }
+
+    // 初始化Threads
+    for ( size_t i=0; i<core_nums; ++i )
+    {
+        running_threads[i]=NULL;
     }
 
     // 加载gdtr
@@ -396,9 +388,9 @@ label_next0:
         idt.igds[32].offset0=(uint16_t)(uintptr_t)timer_isr;
         idt.igds[32].offset1=(uint16_t)(((uintptr_t)timer_isr)>>16);
         idt.igds[32].offset2=(uint32_t)(((uintptr_t)timer_isr)>>32);
-        idt.igds[33].offset0=(uint16_t)(uintptr_t)keyboard_isr;
-        idt.igds[33].offset1=(uint16_t)(((uintptr_t)keyboard_isr)>>16);
-        idt.igds[33].offset2=(uint32_t)(((uintptr_t)keyboard_isr)>>32);
+        //idt.igds[33].offset0=(uint16_t)(uintptr_t)keyboard_isr;
+        //idt.igds[33].offset1=(uint16_t)(((uintptr_t)keyboard_isr)>>16);
+        //idt.igds[33].offset2=(uint32_t)(((uintptr_t)keyboard_isr)>>32);
         struct __attribute__((packed))
         {
             uint16_t limit;

@@ -15,7 +15,7 @@ do \
          "xchgq %%rax, %[mutex]\n\t" \
          "testq %%rax, %%rax\n\t" \
          "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(x) \
+         :[mutex]"+m"(*(volatile uint64_t *)&x) \
          : \
          :"rax", "memory" \
          ); \
@@ -32,7 +32,7 @@ do \
          "xchgq %%rax, %[mutex]\n\t" \
          "testq %%rax, %%rax\n\t" \
          "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(x), __VA_ARGS__ \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), __VA_ARGS__ \
          : \
          :"rax" \
          ); \
@@ -45,7 +45,7 @@ do \
     __asm__ volatile \
         ( \
          "movq  $0, %[mutex]" \
-         :[mutex]"=m"(x) \
+         :[mutex]"=m"(*(volatile uint64_t *)&x) \
          : \
          :"memory" \
          ); \
@@ -58,7 +58,7 @@ do \
     __asm__ volatile \
         ( \
          "movq  $0, %[mutex]" \
-         :[mutex]"=m"(x) \
+         :[mutex]"=m"(*(volatile uint64_t *)&x) \
          : __VA_ARGS__ \
          : \
          ); \

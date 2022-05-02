@@ -4,6 +4,9 @@
  */
 
 /*
+LIST_HEAD_INIT
+LIST_HEAD
+INIT_LIST_HEAD
 __list_add
 list_add
 list_add_tail
@@ -19,10 +22,22 @@ list_for_each_entry_reverse
 */
 
 #include <stddef.h>
+#include <stdbool.h>
 
 struct list_head {
     struct list_head *next, *prev;
 };
+
+#define LIST_HEAD_INIT(name) ((struct list_head){ &(name), &(name) })
+
+#define LIST_HEAD(name) \
+	struct list_head name = LIST_HEAD_INIT(name)
+
+static inline void INIT_LIST_HEAD(struct list_head *list)
+{
+	list->next = list;
+	list->prev = list;
+}
 
 static inline void __list_add(struct list_head *new,
         struct list_head *prev,
@@ -66,7 +81,19 @@ static inline void list_replace(struct list_head *old,
 
 static inline int list_empty(const struct list_head *head)
 {
-    return head->next == head;
+    if ( head->next == head )
+    {
+        if ( head->prev != head )
+        {
+            __builtin_unreachable();
+        }
+        return true;
+    }
+    if ( head->prev == head )
+    {
+        __builtin_unreachable();
+    }
+    return false;
 }
 
 #define list_entry(ptr, type, member) \
