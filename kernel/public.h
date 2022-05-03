@@ -46,12 +46,6 @@ struct Process
     struct list_head head_dead_threads;
 };
 
-enum return_type_t
-{
-    TIMER_INT,
-    FUNCTION
-};
-
 typedef struct Thread Thread;
 struct Thread
 {
@@ -59,7 +53,7 @@ struct Thread
     uint8_t kernel_stack_end[0] __attribute__((aligned(16)));
     struct list_nohead node_sched_threads;
     void *rsp;
-    enum return_type_t return_type;
+    void (*return_handler)();
     uint64_t (*cr3)[512];
     Process *master;
     struct list_head node_active_threads;
@@ -72,7 +66,14 @@ extern tsl_mutex sched_threads_mutex;
 
 static inline size_t get_coreid()
 {
-    return 0;
+    uint32_t core_id;
+    __asm__ volatile(
+            "rdmsr"
+            :"=a"(core_id)
+            :"c"((uint32_t)0x803)
+            :"edx"
+            );
+    return (size_t)core_id;
 }
 
     __attribute__((noreturn))

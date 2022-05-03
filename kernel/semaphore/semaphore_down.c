@@ -22,7 +22,7 @@ void semaphore_down(Semaphore *const sema)
     // 将线程阻塞到信号量上
     size_t const core_id=get_coreid();
     Thread*const running_thread=running_threads[core_id];
-    running_thread->return_type=FUNCTION;
+    running_thread->return_handler=return_handler_function;
     list_add(&sema->head_block_threads, &running_thread->node_block_threads);
     __asm__ volatile(
             "pushq  %%rbx\n\t"
@@ -57,7 +57,6 @@ void semaphore_down(Semaphore *const sema)
                 :[cr3]"r"((uint64_t)&halt_pt0)
                 :);
         TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
-        running_threads[core_id]=NULL;
         switch_to_halt(core_id);
     }
     else
@@ -86,7 +85,6 @@ void semaphore_down(Semaphore *const sema)
                     :);
         }
         TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
-        running_threads[core_id]=new_running;
-        switch_to_thread(new_running);
+        switch_to_thread(new_running, core_id);
     }
 }

@@ -23,6 +23,7 @@ void timer_isr(const void *)
         return;
     }
     struct list_nohead *const next_node=new_node->next;
+    Thread *const new_thread=nhlist_entry(new_node, Thread, node_sched_threads );
     if ( running_thread == NULL )
     {
         if ( new_node == next_node )
@@ -34,6 +35,11 @@ void timer_isr(const void *)
             nhlist_del(new_node);
             index_sched_threads=next_node;
         }
+        __asm__ volatile(
+                "movq   %[new_cr3], %%cr3"
+                :
+                :[new_cr3]"r"(new_thread->cr3)
+                :);
     }
     else
     {
@@ -45,7 +51,7 @@ void timer_isr(const void *)
                 //"pushq  %%rcx\n\t"
                 //"pushq  %%rdx\n\t"
                 //"pushq  %%rax\n\t"
-                "pushq  %%rbp\n\t"
+                //"pushq  %%rbp\n\t"
                 "pushq  %%r12\n\t"
                 "pushq  %%r13\n\t"
                 "pushq  %%r14\n\t"
@@ -59,7 +65,7 @@ void timer_isr(const void *)
                 :
                 :
                 );
-        running_thread->return_type=TIMER_INT;
+        running_thread->return_handler=return_handler_timer_int;
         if ( new_node == next_node )
         {
             running_thread->node_sched_threads.next=running_thread->node_sched_threads.prev=index_sched_threads=&running_thread->node_sched_threads;
@@ -69,9 +75,19 @@ void timer_isr(const void *)
             nhlist_replace(new_node, &running_thread->node_sched_threads);
             index_sched_threads=next_node;
         }
+        {
+            uint64_t temp;
+            __asm__ volatile(
+                    "movq   %%cr3, %[temp]\n\t"
+                    "cmpq   %[temp], %[new_cr3]\n\t"
+                    "je     1f\n\t"
+                    "movq   %[new_cr3], %%cr3\n"
+                    "1:"
+                    :[temp]"=&r"(temp)
+                    :[new_cr3]"r"(new_thread->cr3)
+                    :);
+        }
     }
     TSL_UNLOCK_CONTENT(sched_threads_mutex, "m"(index_sched_threads));
-    Thread *const new_thread=running_threads[core_id]=nhlist_entry(new_node, Thread, node_sched_threads);
-    tsss[core_id].rsp0=(uint64_t)&new_thread->kernel_stack_end;
-    switch_to_thread(new_thread);
+    switch_to_thread(new_thread, core_id);
 }
