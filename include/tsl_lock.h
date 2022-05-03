@@ -8,34 +8,40 @@
 #define TSL_LOCK(x) \
 do \
 { \
+    uint64_t temp=TSL_LOCKED; \
+    uint64_t temp2; \
     __asm__ volatile \
         ( \
-         "movq  $1, %%rax\n" \
          ".Ltsl_lock%=:\n\t" \
-         "xchgq %%rax, %[mutex]\n\t" \
-         "testq %%rax, %%rax\n\t" \
-         "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(*(volatile uint64_t *)&x) \
-         : \
-         :"rax", "memory" \
+         "xorq  %%rax, %%rax\n\t" \
+         "cmpxchgq %[temp], %[mutex]\n\t" \
+         "jne   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), [temp2]"=&a"(temp2) \
+         :[temp]"r"(temp) \
+         :"memory", "cc" \
          ); \
+    if ( temp2 != 0 ) \
+        __builtin_unreachable();\
 } \
 while(false)
 
 #define TSL_LOCK_CONTENT(x, ... ) \
 do \
 { \
+    uint64_t temp=TSL_LOCKED; \
+    uint64_t temp2; \
     __asm__ volatile \
         ( \
-         "movq  $1, %%rax\n" \
          ".Ltsl_lock%=:\n\t" \
-         "xchgq %%rax, %[mutex]\n\t" \
-         "testq %%rax, %%rax\n\t" \
-         "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(*(volatile uint64_t *)&x), __VA_ARGS__ \
-         : \
-         :"rax" \
+         "xorq  %%rax, %%rax\n\t" \
+         "cmpxchgq %[temp], %[mutex]\n\t" \
+         "jne   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), [temp2]"=&a"(temp2), __VA_ARGS__ \
+         :[temp]"r"(temp) \
+         :"memory", "cc" \
          ); \
+    if ( temp2 != 0 ) \
+        __builtin_unreachable();\
 } \
 while(false)
 
@@ -68,36 +74,42 @@ while (false)
 #define CLI_TSL_LOCK(x) \
 do \
 { \
+    uint64_t temp=TSL_LOCKED; \
+    uint64_t temp2; \
     __asm__ volatile \
         ( \
-         "cli\n\t" \
-         "movq  $1, %%rax\n" \
+         "cli\n" \
          ".Ltsl_lock%=:\n\t" \
-         "xchgq %%rax, %[mutex]\n\t" \
-         "testq %%rax, %%rax\n\t" \
-         "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(*(volatile uint64_t *)&x) \
-         : \
-         :"rax", "memory" \
+         "xorq  %%rax, %%rax\n\t" \
+         "cmpxchgq %[temp], %[mutex]\n\t" \
+         "jne   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), [temp2]"=&a"(temp2) \
+         :[temp]"r"(temp) \
+         :"memory", "cc" \
          ); \
+    if ( temp2 != 0 ) \
+        __builtin_unreachable();\
 } \
 while(false)
 
 #define CLI_TSL_LOCK_CONTENT(x, ... ) \
 do \
 { \
+    uint64_t temp=TSL_LOCKED; \
+    uint64_t temp2; \
     __asm__ volatile \
         ( \
-         "cli\n\t" \
-         "movq  $1, %%rax\n" \
+         "cli\n" \
          ".Ltsl_lock%=:\n\t" \
-         "xchgq %%rax, %[mutex]\n\t" \
-         "testq %%rax, %%rax\n\t" \
-         "jnz   .Ltsl_lock%=" \
-         :[mutex]"+m"(*(volatile uint64_t *)&x), __VA_ARGS__ \
-         : \
-         :"rax" \
+         "xorq  %%rax, %%rax\n\t" \
+         "cmpxchgq %[temp], %[mutex]\n\t" \
+         "jne   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), [temp2]"=&a"(temp2), __VA_ARGS__ \
+         :[temp]"r"(temp) \
+         :"memory", "cc" \
          ); \
+    if ( temp2 != 0 ) \
+        __builtin_unreachable();\
 } \
 while(false)
 
