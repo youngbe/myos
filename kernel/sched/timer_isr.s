@@ -17,16 +17,16 @@ timer_isr:
 	rdmsr
 # 0 "" 2
 #NO_APP
-	movq	running_threads(%rip), %rsi
+	movq	running_threads(%rip), %rdi
 	movl	%eax, %edx
-	movq	(%rsi,%rdx,8), %rdi
+	movl	$1, %esi
+	movq	(%rdi,%rdx,8), %rcx
 #APP
 # 18 "timer_isr.c" 1
-	movq  $1, %rax
-.Ltsl_lock17:
-	xchgq %rax, sched_threads_mutex(%rip)
-	testq %rax, %rax
-	jnz   .Ltsl_lock17
+	.Ltsl_lock18:
+	xorq  %rax, %rax
+	cmpxchgq %rsi, sched_threads_mutex(%rip)
+	jne   .Ltsl_lock18
 # 0 "" 2
 #NO_APP
 	movq	index_sched_threads(%rip), %rax
@@ -46,9 +46,9 @@ timer_isr:
 	popq	%rbp
 	iretq
 .L2:
-	movq	(%rax), %rcx
+	movq	(%rax), %rsi
 	leaq	-65536(%rax), %rbx
-	testq	%rdi, %rdi
+	testq	%rcx, %rcx
 	je	.L12
 #APP
 # 47 "timer_isr.c" 1
@@ -60,26 +60,26 @@ timer_isr:
 	pushq  %r9
 	pushq  %r10
 	pushq  %r11
-	movq   %rsp, 65552(%rdi)
+	movq   %rsp, 65552(%rcx)
 # 0 "" 2
 #NO_APP
 	movq	return_handler_timer_int@GOTPCREL(%rip), %rbp
-	movq	%rbp, 65560(%rdi)
-	leaq	65536(%rdi), %rbp
-	cmpq	%rcx, %rax
+	movq	%rbp, 65560(%rcx)
+	leaq	65536(%rcx), %rbp
+	cmpq	%rsi, %rax
 	je	.L13
-	movq	%rcx, 65536(%rdi)
-	movq	%rbp, 8(%rcx)
+	movq	%rsi, 65536(%rcx)
+	movq	%rbp, 8(%rsi)
 	movq	8(%rax), %rax
-	movq	%rax, 65544(%rdi)
+	movq	%rax, 65544(%rcx)
 	movq	%rbp, (%rax)
-	movq	%rcx, index_sched_threads(%rip)
+	movq	%rsi, index_sched_threads(%rip)
 .L7:
 	movq	65568(%rbx), %rax
 #APP
 # 80 "timer_isr.c" 1
-	movq   %cr3, %rdi
-	cmpq   %rdi, %rax
+	movq   %cr3, %rsi
+	cmpq   %rsi, %rax
 	je     1f
 	movq   %rax, %cr3
 1:
@@ -92,7 +92,7 @@ timer_isr:
 # 0 "" 2
 #NO_APP
 	movq	%rdx, %rax
-	movq	%rbx, (%rsi,%rdx,8)
+	movq	%rbx, (%rdi,%rdx,8)
 	leaq	65536(%rbx), %rdx
 	salq	$7, %rax
 	addq	tsss(%rip), %rax
@@ -104,14 +104,14 @@ timer_isr:
 # 0 "" 2
 #NO_APP
 .L12:
-	cmpq	%rcx, %rax
+	cmpq	%rsi, %rax
 	je	.L4
 	movq	8(%rax), %rax
-	movq	%rcx, %rdi
-	movq	%rax, 8(%rcx)
-	movq	%rcx, (%rax)
+	movq	%rsi, %rcx
+	movq	%rax, 8(%rsi)
+	movq	%rsi, (%rax)
 .L4:
-	movq	%rdi, index_sched_threads(%rip)
+	movq	%rcx, index_sched_threads(%rip)
 	movq	65568(%rbx), %rax
 #APP
 # 38 "timer_isr.c" 1
@@ -121,8 +121,8 @@ timer_isr:
 	jmp	.L5
 .L13:
 	movq	%rbp, index_sched_threads(%rip)
-	movq	%rbp, 65544(%rdi)
-	movq	%rbp, 65536(%rdi)
+	movq	%rbp, 65544(%rcx)
+	movq	%rbp, 65536(%rcx)
 	jmp	.L7
 	.size	timer_isr, .-timer_isr
 	.ident	"GCC: (Ubuntu 12-20220319-1ubuntu1) 12.0.1 20220319 (experimental) [master r12-7719-g8ca61ad148f]"

@@ -4,46 +4,45 @@
 	.globl	semaphore_up
 	.type	semaphore_up, @function
 semaphore_up:
+	movl	$1, %ecx
 #APP
 # 5 "semaphore_up.c" 1
 	cli
-	movq  $1, %rax
-.Ltsl_lock5:
-	xchgq %rax, (%rdi)
-	testq %rax, %rax
-	jnz   .Ltsl_lock5
+.Ltsl_lock6:
+	xorq  %rax, %rax
+	cmpxchgq %rcx, (%rdi)
+	jne   .Ltsl_lock6
 # 0 "" 2
 #NO_APP
 	movq	16(%rdi), %rax
 	leaq	16(%rdi), %rdx
 	cmpq	%rax, %rdx
 	je	.L7
-	movq	(%rax), %rcx
-	movq	%rdx, 8(%rcx)
-	movq	%rcx, 16(%rdi)
+	movq	(%rax), %rsi
+	movq	%rdx, 8(%rsi)
+	movq	%rsi, 16(%rdi)
 #APP
 # 16 "semaphore_up.c" 1
 	movq  $0, (%rdi)
 # 0 "" 2
 #NO_APP
-	leaq	-65616(%rax), %rcx
+	leaq	-65616(%rax), %rsi
 	leaq	-80(%rax), %rdx
 #APP
 # 19 "semaphore_up.c" 1
-	movq  $1, %rax
-.Ltsl_lock17:
-	xchgq %rax, sched_threads_mutex(%rip)
-	testq %rax, %rax
-	jnz   .Ltsl_lock17
+	.Ltsl_lock18:
+	xorq  %rax, %rax
+	cmpxchgq %rcx, sched_threads_mutex(%rip)
+	jne   .Ltsl_lock18
 # 0 "" 2
 #NO_APP
 	movq	index_sched_threads(%rip), %rax
 	testq	%rax, %rax
 	je	.L8
-	movq	(%rax), %rsi
-	movq	%rdx, 8(%rsi)
-	movq	%rsi, 65536(%rcx)
-	movq	%rax, 65544(%rcx)
+	movq	(%rax), %rcx
+	movq	%rdx, 8(%rcx)
+	movq	%rcx, 65536(%rsi)
+	movq	%rax, 65544(%rsi)
 	movq	%rdx, (%rax)
 .L5:
 #APP
@@ -56,8 +55,8 @@ semaphore_up:
 	.p2align 4,,10
 	.p2align 3
 .L8:
-	movq	%rdx, 65544(%rcx)
-	movq	%rdx, 65536(%rcx)
+	movq	%rdx, 65544(%rsi)
+	movq	%rdx, 65536(%rsi)
 	movq	%rdx, index_sched_threads(%rip)
 	jmp	.L5
 	.p2align 4,,10

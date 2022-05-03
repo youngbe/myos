@@ -5,14 +5,14 @@
 	.type	semaphore_down, @function
 semaphore_down:
 	movq	%rdi, %rsi
+	movl	$1, %r8d
 #APP
 # 5 "semaphore_down.c" 1
 	cli
-	movq  $1, %rax
-.Ltsl_lock6:
-	xchgq %rax, (%rdi)
-	testq %rax, %rax
-	jnz   .Ltsl_lock6
+.Ltsl_lock7:
+	xorq  %rax, %rax
+	cmpxchgq %r8, (%rdi)
+	jne   .Ltsl_lock7
 # 0 "" 2
 #NO_APP
 	movq	8(%rdi), %rax
@@ -24,10 +24,10 @@ semaphore_down:
 	rdmsr
 # 0 "" 2
 #NO_APP
-	movq	running_threads(%rip), %r8
+	movq	running_threads(%rip), %r9
 	movl	%eax, %edx
 	movq	return_handler_function@GOTPCREL(%rip), %rcx
-	movq	(%r8,%rdx,8), %rax
+	movq	(%r9,%rdx,8), %rax
 	movq	%rcx, 65560(%rax)
 	leaq	16(%rdi), %rcx
 	movq	65616(%rax), %rdi
@@ -47,11 +47,10 @@ semaphore_down:
 	movq   %rsp, 65552(%rax)
 # 0 "" 2
 # 38 "semaphore_down.c" 1
-	movq  $1, %rax
-.Ltsl_lock26:
-	xchgq %rax, sched_threads_mutex(%rip)
-	testq %rax, %rax
-	jnz   .Ltsl_lock26
+	.Ltsl_lock27:
+	xorq  %rax, %rax
+	cmpxchgq %r8, sched_threads_mutex(%rip)
+	jne   .Ltsl_lock27
 # 0 "" 2
 #NO_APP
 	movq	index_sched_threads(%rip), %rax
@@ -74,8 +73,8 @@ semaphore_down:
 	movq	65568(%rcx), %rdi
 #APP
 # 67 "semaphore_down.c" 1
-	movq   %cr3, %r9
-	cmpq   %r9, %rdi
+	movq   %cr3, %r8
+	cmpq   %r8, %rdi
 	je     1f
 	movq   %rdi, %cr3
 1:
@@ -84,7 +83,7 @@ semaphore_down:
 	movq  $0, (%rsi)
 # 0 "" 2
 #NO_APP
-	movq	%rcx, (%r8,%rdx,8)
+	movq	%rcx, (%r9,%rdx,8)
 	salq	$7, %rdx
 	addq	tsss(%rip), %rdx
 	movq	%rax, 4(%rdx)
@@ -128,7 +127,7 @@ semaphore_down:
 	movq  $0, (%rsi)
 # 0 "" 2
 #NO_APP
-	movq	$0, (%r8,%rdx,8)
+	movq	$0, (%r9,%rdx,8)
 	addq	$1, %rdx
 	salq	$12, %rdx
 	addq	halt_stacks(%rip), %rdx
