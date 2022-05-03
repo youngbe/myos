@@ -7,13 +7,11 @@ semaphore_up:
 #APP
 # 5 "semaphore_up.c" 1
 	cli
-# 0 "" 2
-# 10 "semaphore_up.c" 1
 	movq  $1, %rax
-.Ltsl_lock6:
+.Ltsl_lock5:
 	xchgq %rax, (%rdi)
 	testq %rax, %rax
-	jnz   .Ltsl_lock6
+	jnz   .Ltsl_lock5
 # 0 "" 2
 #NO_APP
 	movq	16(%rdi), %rax
@@ -24,19 +22,19 @@ semaphore_up:
 	movq	%rdx, 8(%rcx)
 	movq	%rcx, 16(%rdi)
 #APP
-# 26 "semaphore_up.c" 1
+# 16 "semaphore_up.c" 1
 	movq  $0, (%rdi)
 # 0 "" 2
 #NO_APP
 	leaq	-65616(%rax), %rcx
 	leaq	-80(%rax), %rdx
 #APP
-# 29 "semaphore_up.c" 1
+# 19 "semaphore_up.c" 1
 	movq  $1, %rax
-.Ltsl_lock18:
+.Ltsl_lock17:
 	xchgq %rax, sched_threads_mutex(%rip)
 	testq %rax, %rax
-	jnz   .Ltsl_lock18
+	jnz   .Ltsl_lock17
 # 0 "" 2
 #NO_APP
 	movq	index_sched_threads(%rip), %rax
@@ -49,10 +47,8 @@ semaphore_up:
 	movq	%rdx, (%rax)
 .L5:
 #APP
-# 39 "semaphore_up.c" 1
+# 29 "semaphore_up.c" 1
 	movq  $0, sched_threads_mutex(%rip)
-# 0 "" 2
-# 40 "semaphore_up.c" 1
 	sti
 # 0 "" 2
 #NO_APP
@@ -69,10 +65,8 @@ semaphore_up:
 .L7:
 	addq	$1, 8(%rdi)
 #APP
-# 14 "semaphore_up.c" 1
+# 9 "semaphore_up.c" 1
 	movq  $0, (%rdi)
-# 0 "" 2
-# 15 "semaphore_up.c" 1
 	sti
 # 0 "" 2
 #NO_APP

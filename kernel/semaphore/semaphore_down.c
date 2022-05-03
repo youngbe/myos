@@ -2,21 +2,11 @@
 
 void semaphore_down(Semaphore *const sema)
 {
-    __asm__ volatile(
-            "cli"
-            :"=m"(sema->mutex)
-            :
-            :);
-    TSL_LOCK_CONTENT(sema->mutex, "=m"(*sema));
+    CLI_TSL_LOCK_CONTENT(sema->mutex, "=m"(*sema));
     if ( sema->val != 0 )
     {
         --sema->val;
-        TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
-        __asm__ volatile(
-                "sti"
-                :
-                :"m"(sema->mutex)
-                :);
+        STI_TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
         return;
     }
     // 将线程阻塞到信号量上

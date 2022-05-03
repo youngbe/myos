@@ -1,11 +1,15 @@
 #include "semaphore.h"
 
-void semaphore_up(Semaphore *const sema)
+void semaphore_ups(Semaphore *const sema, size_t val)
 {
+    if ( val == 0 )
+    {
+        return;
+    }
     CLI_TSL_LOCK_CONTENT(sema->mutex, "=m"(*sema));
     if (  list_empty(&sema->head_block_threads) )
     {
-        ++sema->val;
+        sema->val+=val;
         STI_TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
         return;
     }
@@ -13,7 +17,6 @@ void semaphore_up(Semaphore *const sema)
     {
         struct list_head *const temp_node=sema->head_block_threads.next;
         __list_del(&sema->head_block_threads, temp_node->next);
-        TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
         new_sched_node=&list_entry(temp_node, Thread, node_block_threads)->node_sched_threads;
     }
     TSL_LOCK_CONTENT(sched_threads_mutex, "=m"(index_sched_threads));
@@ -26,5 +29,16 @@ void semaphore_up(Semaphore *const sema)
     {
         nhlist_add(new_sched_node, index_sched_threads);
     }
-    STI_TSL_UNLOCK(sched_threads_mutex);
+    --val;
+    while ( val != 0 && !list_empty(&sema->head_block_threads) )
+    {
+        struct list_head *const temp_node=sema->head_block_threads.next;
+        __list_del(&sema->head_block_threads, temp_node->next);
+        new_sched_node=&list_entry(temp_node, Thread, node_block_threads)->node_sched_threads;
+        nhlist_add(new_sched_node, index_sched_threads);
+        --val;
+    }
+    TSL_UNLOCK(sched_threads_mutex);
+    sema->val+=val;
+    STI_TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
 }

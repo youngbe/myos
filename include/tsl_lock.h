@@ -65,4 +65,68 @@ do \
 } \
 while (false)
 
+#define CLI_TSL_LOCK(x) \
+do \
+{ \
+    __asm__ volatile \
+        ( \
+         "cli\n\t" \
+         "movq  $1, %%rax\n" \
+         ".Ltsl_lock%=:\n\t" \
+         "xchgq %%rax, %[mutex]\n\t" \
+         "testq %%rax, %%rax\n\t" \
+         "jnz   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x) \
+         : \
+         :"rax", "memory" \
+         ); \
+} \
+while(false)
+
+#define CLI_TSL_LOCK_CONTENT(x, ... ) \
+do \
+{ \
+    __asm__ volatile \
+        ( \
+         "cli\n\t" \
+         "movq  $1, %%rax\n" \
+         ".Ltsl_lock%=:\n\t" \
+         "xchgq %%rax, %[mutex]\n\t" \
+         "testq %%rax, %%rax\n\t" \
+         "jnz   .Ltsl_lock%=" \
+         :[mutex]"+m"(*(volatile uint64_t *)&x), __VA_ARGS__ \
+         : \
+         :"rax" \
+         ); \
+} \
+while(false)
+
+#define STI_TSL_UNLOCK(x) \
+do \
+{ \
+    __asm__ volatile \
+        ( \
+         "movq  $0, %[mutex]\n\t" \
+         "sti" \
+         :[mutex]"=m"(*(volatile uint64_t *)&x) \
+         : \
+         :"memory" \
+         ); \
+} \
+while (false)
+
+#define STI_TSL_UNLOCK_CONTENT(x, ... ) \
+do \
+{ \
+    __asm__ volatile \
+        ( \
+         "movq  $0, %[mutex]\n\t" \
+         "sti" \
+         :[mutex]"=m"(*(volatile uint64_t *)&x) \
+         : __VA_ARGS__ \
+         : \
+         ); \
+} \
+while (false)
+
 typedef uint64_t tsl_mutex;
