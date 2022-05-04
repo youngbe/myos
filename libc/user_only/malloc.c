@@ -33,6 +33,9 @@
 #define ALLOC_PAGES(base, num) alloc_pages(base, num)
 // void FREE_PAGES(void* base, size_t num);
 #define FREE_PAGES(base, num) free_pages(base, num)
+// 多线程malloc用的锁，不需要锁请填写do{}while(false)
+#define MALLOC_LOCK() do{}while(false)
+#define MALLOC_UNLOCK() do{}while(false)
 
 #define MALLOC_ALIGNMENT (((uintptr_t)1)<<MALLOC_P2ALIGNMENT)
 #define PAGE_SIZE (((uintptr_t)1)<<PAGE_P2SIZE)
@@ -126,6 +129,7 @@ void *MALLOC(size_t size_o)
     {
         return NULL;
     }
+    MALLOC_LOCK();
     // 先遍历一遍空闲块，看是否有合适的
     {
         Block *free_block;
@@ -141,10 +145,12 @@ void *MALLOC(size_t size_o)
                 // free aera : free_block->content[ 0 to (free_block->header.size-1) ]
                 if ( alloc_pages_tool(UP_ALIGN_PAGE((uintptr_t)free_block->content), ALIGN_PAGE(next_block_t)) != 0 )
                 {
+                    MALLOC_UNLOCK();
                     return NULL;
                 }
                 free_block->header.flag=1;
                 list_del(&free_block->header.node_free_blocks);
+                MALLOC_UNLOCK();
                 return (void *)free_block->content;
             }
             else
@@ -160,6 +166,7 @@ void *MALLOC(size_t size_o)
                     }
                     if ( alloc_pages_tool(page_start, ALIGN_PAGE(next_block_t)) != 0 )
                     {
+                        MALLOC_UNLOCK();
                         return NULL;
                     }
                 }
@@ -168,6 +175,7 @@ void *MALLOC(size_t size_o)
                 new_block->header.size=size;
                 new_block->header.flag=1;
                 new_block->header.prev=free_block;
+                MALLOC_UNLOCK();
                 return (void *)new_content;
             }
         }
@@ -180,14 +188,17 @@ void *MALLOC(size_t size_o)
     {
         if ( size >= _LIMIT - _BASE )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         if ( _LIMIT - _BASE - size < offsetof(Block, content) - 1 )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         if ( ALLOC_PAGES((void *)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         last_block=(Block *)_BASE;
@@ -200,15 +211,18 @@ void *MALLOC(size_t size_o)
     {
         if ( _LIMIT - (uintptr_t)&last_block->content[last_block->header.size-1] <= size )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         if ( _LIMIT - (uintptr_t)&last_block->content[last_block->header.size-1] - size < offsetof(Block, content) )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         Block *const new_block=(Block*)&last_block->content[last_block->header.size];
         if ( alloc_pages_tool1(UP_ALIGN_PAGE((uintptr_t)new_block), ALIGN_PAGE((uintptr_t)&new_block->content[size]-1)) != 0 )
         {
+            MALLOC_UNLOCK();
             return NULL;
         }
         new_block->header.size=size;
@@ -216,12 +230,14 @@ void *MALLOC(size_t size_o)
         new_block->header.prev=last_block;
         last_block=new_block;
     }
+    MALLOC_UNLOCK();
     return (void *)last_block->content;
 }
 
 void FREE(void *base)
 {
     Block *const del_block=(Block *)(uintptr_t)((uintptr_t)base-offsetof(Block, content));
+    MALLOC_LOCK();
     if ( del_block == last_block )
     {
         if ( (uintptr_t)del_block == _BASE )
@@ -229,6 +245,7 @@ void FREE(void *base)
             // 没有更多的块了，清空堆
             FREE_PAGES((void*)_BASE, ( (del_block->header.size+offsetof(Block, content)-1) >> PAGE_P2SIZE)+1);
             last_block=NULL;
+            MALLOC_UNLOCK();
             return;
         }
         Block *const prev_block=del_block->header.prev;
@@ -250,6 +267,7 @@ void FREE(void *base)
                 }
                 head_free_blocks.prev=head_free_blocks.next=&head_free_blocks;
                 last_block=NULL;
+                MALLOC_UNLOCK();
                 return;
             }
             // 删除 del 块，prev 块
@@ -278,6 +296,7 @@ void FREE(void *base)
             last_block=prev_block;
             free_pages_tool1(UP_ALIGN_PAGE((uintptr_t)del_block), ALIGN_PAGE((uintptr_t)&del_block->content[del_block->header.size-1]));
         }
+        MALLOC_UNLOCK();
         return;
     }
 
@@ -311,6 +330,7 @@ void FREE(void *base)
             list_add(&del_block->header.node_free_blocks, &head_free_blocks);
             free_pages_tool(UP_ALIGN_PAGE((uintptr_t)del_block->content), ALIGN_PAGE((uintptr_t)next_block) );
         }
+        MALLOC_UNLOCK();
         return;
     }
 
@@ -374,6 +394,7 @@ void FREE(void *base)
             free_pages_tool(UP_ALIGN_PAGE((uintptr_t)del_block->content), ALIGN_PAGE((uintptr_t)next_block));
         }
     }
+    MALLOC_UNLOCK();
 }
 
 void *MALLOC_P2ALIGN(size_t size_o, const size_t p2align)
@@ -402,6 +423,7 @@ void *MALLOC_P2ALIGN(size_t size_o, const size_t p2align)
         return NULL;
     }
     uintptr_t const align=((uintptr_t)1)<<p2align;
+    MALLOC_LOCK();
     // 先遍历一遍空闲块，看是否有合适的
     {
         Block *free_block;
@@ -447,6 +469,7 @@ label1:
                         // alloc free_content to next_block_t-1
                         if (alloc_pages_tool(UP_ALIGN_PAGE(free_content), ALIGN_PAGE(next_block_t)) != 0)
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                         list_del(&free_block->header.node_free_blocks);
@@ -463,6 +486,7 @@ label1:
                             }
                             if ( alloc_pages_tool(page_start, ALIGN_PAGE(next_block_t)) != 0 )
                             {
+                                MALLOC_UNLOCK();
                                 return NULL;
                             }
                         }
@@ -471,6 +495,7 @@ label1:
                         new_block->header.prev=free_block;
                     }
                     new_block->header.flag=1;
+                    MALLOC_UNLOCK();
                     return (void*)new_content;
                 }
                 else
@@ -487,6 +512,7 @@ label2:
                             {
                                 if ( alloc_pages_tool( UP_ALIGN_PAGE(free_content), page_limit ) != 0 )
                                 {
+                                    MALLOC_UNLOCK();
                                     return NULL;
                                 }
                             }
@@ -494,6 +520,7 @@ label2:
                             {
                                 if ( alloc_pages_tool1( UP_ALIGN_PAGE(free_content), page_limit ) != 0 )
                                 {
+                                    MALLOC_UNLOCK();
                                     return NULL;
                                 }
                             }
@@ -504,6 +531,7 @@ label2:
                         new_free_block->header.size=next_block_t-new_free_content;
                         new_free_block->header.flag=0;
                         new_free_block->header.prev=free_block;
+                        MALLOC_UNLOCK();
                         return (void *)free_content;
                     }
                     else
@@ -523,6 +551,7 @@ label2:
                             {
                                 if ( alloc_pages_tool(page_start, page_limit) != 0 )
                                 {
+                                    MALLOC_UNLOCK();
                                     return NULL;
                                 }
                             }
@@ -530,6 +559,7 @@ label2:
                             {
                                 if ( alloc_pages_tool1(page_start, page_limit) != 0 )
                                 {
+                                    MALLOC_UNLOCK();
                                     return NULL;
                                 }
                             }
@@ -542,6 +572,7 @@ label2:
                         new_free_block->header.size=next_block_t-new_free_content;
                         new_free_block->header.flag=0;
                         new_free_block->header.prev=new_block;
+                        MALLOC_UNLOCK();
                         return (void*)new_content;
                     }
                 }
@@ -568,6 +599,7 @@ label2:
                     // alloc free_content to next_block_t-1
                     if ( alloc_pages_tool(UP_ALIGN_PAGE(free_content), ALIGN_PAGE(next_block_t)) != 0 )
                     {
+                        MALLOC_UNLOCK();
                         return NULL;
                     }
                     list_del(&free_block->header.node_free_blocks);
@@ -590,6 +622,7 @@ label2:
                         }
                         if ( alloc_pages_tool(page_start, ALIGN_PAGE(next_block_t)) != 0 )
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                     }
@@ -598,6 +631,7 @@ label2:
                     new_block->header.prev=free_block;
                 }
                 new_block->header.flag=1;
+                MALLOC_UNLOCK();
                 return (void *)new_content;
             }
 label_next:
@@ -616,6 +650,7 @@ label_next:
                     {
                         if (alloc_pages_tool(UP_ALIGN_PAGE(free_content), page_limit) != 0)
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                     }
@@ -623,6 +658,7 @@ label_next:
                     {
                         if (alloc_pages_tool1(UP_ALIGN_PAGE(free_content), page_limit) != 0 )
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                     }
@@ -650,6 +686,7 @@ label_next:
                     {
                         if (alloc_pages_tool(page_start, page_limit) != 0)
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                     }
@@ -657,6 +694,7 @@ label_next:
                     {
                         if (alloc_pages_tool1(page_start, page_limit) != 0 )
                         {
+                            MALLOC_UNLOCK();
                             return NULL;
                         }
                     }
@@ -670,6 +708,7 @@ label_next:
             new_free_block->header.size=next_block_t-new_free_content;
             new_free_block->header.flag=0;
             new_free_block->header.prev=new_block;
+            MALLOC_UNLOCK();
             return (void *)new_content;
         }
     }
@@ -683,39 +722,47 @@ label_next:
         {
             if ( size >= _LIMIT - _BASE )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             if ( _LIMIT - _BASE - size < offsetof(Block, content) - 1 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             if ( ALLOC_PAGES((void*)_BASE, ((size+offsetof(Block, content)-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             last_block=(Block *)_BASE;
             last_block->header.size=size;
             last_block->header.flag=1;
+            MALLOC_UNLOCK();
             return (void *)last_block->content;
         }
         else
         {
             if ( offsetof(Block, content)*2 > _LIMIT - _BASE )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             uintptr_t new_content=P2ALIGN(_BASE+offsetof(Block, content)*2-1, p2align);
             if ( _LIMIT - new_content < align )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             new_content+=align;
             if ( _LIMIT - new_content < size - 1 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             if ( ALLOC_PAGES((void*)_BASE, ((size+new_content-_BASE-1)>>PAGE_P2SIZE) +1 ) != 0 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             Block *const new_block=(Block*)(uintptr_t)(new_content-offsetof(Block, content));
@@ -726,12 +773,14 @@ label_next:
             new_block->header.size=size;
             new_block->header.flag=1;
             new_block->header.prev=last_block;
+            MALLOC_UNLOCK();
             return (void *)new_content;
         }
     }
     // 在堆结尾创建新的块
     if ( _LIMIT - (uintptr_t)&last_block->content[last_block->header.size-1] <= offsetof(Block, content) )
     {
+        MALLOC_UNLOCK();
         return NULL;
     }
     Block *const free_block=(Block*)&last_block->content[last_block->header.size];
@@ -739,11 +788,13 @@ label_next:
     uintptr_t new_content=P2ALIGN( free_content-1, p2align );
     if ( _LIMIT - new_content < align )
     {
+        MALLOC_UNLOCK();
         return NULL;
     }
     new_content+=align;
     if ( _LIMIT - new_content < size - 1 )
     {
+        MALLOC_UNLOCK();
         return NULL;
     }
     Block *const new_block=(Block *)(uintptr_t)(new_content-offsetof(Block, content));
@@ -757,11 +808,13 @@ label_next:
             // 有空隙
             if ( alloc_pages_tool1( page_start0, page_limit0 ) != 0 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
             if ( alloc_pages_tool1_( page_start, page_limit ) != 0 )
             {
                 free_pages_tool1(page_start0, page_limit0);
+                MALLOC_UNLOCK();
                 return NULL;
             }
         }
@@ -769,6 +822,7 @@ label_next:
         {
             if ( alloc_pages_tool1(page_start0, page_limit) != 0 )
             {
+                MALLOC_UNLOCK();
                 return NULL;
             }
         }
@@ -793,6 +847,7 @@ label_next:
         list_add(&free_block->header.node_free_blocks, &head_free_blocks);
     }
     last_block=new_block;
+    MALLOC_UNLOCK();
     return (void *)new_content;
 }
 
