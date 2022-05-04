@@ -45,7 +45,7 @@ void semaphore_down(Semaphore *const sema)
                 "movq   %[cr3], %%cr3"
                 :
                 :[cr3]"r"((uint64_t)&halt_pt0)
-                :"memory");
+                :);
         TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
         switch_to_halt(core_id);
     }
@@ -72,7 +72,7 @@ void semaphore_down(Semaphore *const sema)
                     "1:"
                     :[temp]"=&r"(temp)
                     :[new_cr3]"r"(new_running->cr3)
-                    :"cc", "memory");
+                    :"cc");
         }
         TSL_UNLOCK_CONTENT(sema->mutex, "m"(*sema));
         switch_to_thread(new_running, core_id);
