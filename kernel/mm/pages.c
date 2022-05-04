@@ -4,7 +4,10 @@
 #include <bit.h>
 
 #include <tsl_lock.h>
-#include <kernel.h>
+
+#include "public.h"
+#include "init_output.h"
+#include "semaphore/semaphore.h"
 
 #if UINTPTR_MAX != UINT64_MAX
 只支持 x86_64指令集
@@ -21,27 +24,6 @@
 #define USER_LIMIT_PAGE (((uint64_t)1<<48)-((uint64_t)1<<21))
 
 
-extern size_t free_pages_num;
-extern uint64_t *const free_pages;
-
-extern uint64_t kernel_pt1s[64][512];
-extern uint64_t (*const page_tables)[512];
-extern uint_fast16_t *const pte_nums;
-extern uint64_t (**const free_page_tables)[512];
-extern size_t free_page_tables_num;
-
-
-static inline uint64_t (*get_cr3())[512]
-{
-    uint64_t (*cr3)[512];
-    __asm__ volatile(
-            "movq   %%cr3, %0"
-            :"=r"(cr3)
-            :
-            :);
-    return cr3;
-}
-
 static inline size_t calc_max_need_page_tables_num(uint64_t const base, uint64_t const limit);
 // 不会检查剩余空闲页表是否足够
 // 如果已经有映射，则报错
@@ -49,10 +31,6 @@ static inline void map_page_2m_kernel(const uint64_t v_page, const uint64_t phy_
 //static inline void map_page_2m_user(const uint64_t v_page, const uint64_t phy_page, uint64_t (*const cr3)[512]);
 static inline uint64_t unmap_page_2m_kernel(const uint64_t v_page);
 static inline uint_fast16_t * get_pte_num(uint64_t (*)[512]);
-
-
-
-static tsl_mutex pages_mutex=TSL_UNLOCKED;
 
 
 int alloc_pages_kernel(void *const base, const size_t num)
@@ -76,13 +54,10 @@ int alloc_pages_kernel(void *const base, const size_t num)
     }
     uint64_t const limit_page=base_page+((uint64_t)(num-1)<<21);
     size_t const max_need_page_tables_num=calc_max_need_page_tables_num(base_page, limit_page);
-    TSL_LOCK_CONTENT(pages_mutex, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
-            "=m"(*(uint64_t (*)[][512])page_tables),
-            "=m"(free_page_tables_num), "=m"(*(uint64_t (* (*)[])[512])free_page_tables),
-            "=m"(*(uint_fast16_t (*)[])pte_nums));
+    semaphore_down(&mm_mutex);
     if ( num>free_pages_num || max_need_page_tables_num > free_page_tables_num )
     {
-        pages_mutex=TSL_UNLOCKED;
+        semaphore_up(&mm_mutex);
         return -1;
     }
     while ( true )
@@ -97,10 +72,7 @@ int alloc_pages_kernel(void *const base, const size_t num)
             base_page+=(uint64_t)1<<21;
         }
     }
-    TSL_UNLOCK_CONTENT(pages_mutex, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
-            "m"(*(uint64_t (*)[][512])page_tables),
-            "m"(free_page_tables_num), "m"(*(uint64_t (* (*)[])[512])free_page_tables),
-            "m"(*(uint_fast16_t (*)[])pte_nums));
+    semaphore_up(&mm_mutex);
     return 0;
 }
 void free_pages_kernel(void *const base, const size_t num)
@@ -111,10 +83,7 @@ void free_pages_kernel(void *const base, const size_t num)
     }
     uint64_t base_page=(uint64_t)base;
     uint64_t const limit_page=base_page+((uint64_t)(num-1)<<21);
-    TSL_LOCK_CONTENT(pages_mutex, "=m"(free_pages_num), "=m"(*(uint64_t (*)[])free_pages),
-            "=m"(*(uint64_t (*)[][512])page_tables),
-            "=m"(free_page_tables_num), "=m"(*(uint64_t (* (*)[])[512])free_page_tables),
-            "=m"(*(uint_fast16_t (*)[])pte_nums));
+    semaphore_down(&mm_mutex);
     while ( true )
     {
         free_pages[free_pages_num++]=unmap_page_2m_kernel(base_page);
@@ -127,10 +96,7 @@ void free_pages_kernel(void *const base, const size_t num)
             base_page+=(uint64_t)1<<21;
         }
     }
-    TSL_UNLOCK_CONTENT(pages_mutex, "m"(free_pages_num), "m"(*(uint64_t (*)[])free_pages),
-            "m"(*(uint64_t (*)[][512])page_tables),
-            "m"(free_page_tables_num), "m"(*(uint64_t (* (*)[])[512])free_page_tables),
-            "m"(*(uint_fast16_t (*)[])pte_nums));
+    semaphore_up(&mm_mutex);
 }
 
 inline uint64_t unmap_page_2m_kernel(const uint64_t v_page)
