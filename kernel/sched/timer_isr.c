@@ -39,7 +39,7 @@ void timer_isr(const void *)
                 "movq   %[new_cr3], %%cr3"
                 :
                 :[new_cr3]"r"(new_thread->cr3)
-                :);
+                :"memory");
     }
     else
     {
@@ -85,7 +85,7 @@ void timer_isr(const void *)
                     "1:"
                     :[temp]"=&r"(temp)
                     :[new_cr3]"r"(new_thread->cr3)
-                    :);
+                    :"cc", "memory");
         }
     }
     TSL_UNLOCK_CONTENT(sched_threads_mutex, "m"(index_sched_threads));

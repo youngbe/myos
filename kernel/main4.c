@@ -354,14 +354,15 @@ label_next0:
         } gdtr={sizeof(gdt)-1, (uint64_t)&gdt};
         uint64_t temp_pgdtr=(uint64_t)&gdtr;
         uint64_t temp_ds=__DS;
+        uint64_t temp;
         __asm__ volatile(
-                "movq   %%rsp, %%rax\n\t"
+                "movq   %%rsp, %[temp]\n\t"
                 "pushq  %[ds]\n\t"
-                "pushq  %%rax\n\t"
+                "pushq  %[temp]\n\t"
                 "pushfq\n\t"
                 "pushq  %[cs]\n\t"
-                "leaq   .Lreinit_gdt%=(%%rip), %%rax\n\t"
-                "pushq  %%rax\n\t"
+                "leaq   .Lreinit_gdt%=(%%rip), %[temp]\n\t"
+                "pushq  %[temp]\n\t"
                 "lgdtq  (%[pgdtr])\n\t"
                 "iretq\n"
                 ".Lreinit_gdt%=:\n\t"
@@ -371,9 +372,9 @@ label_next0:
                 "movq   %[ds], %%gs"
                 // 之所以将[pgdtr]放在写入一栏
                 // 是为了防止编译器将 %[pgdtr] 放在 %rsp 上
-                :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds)
+                :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds), [temp]"=&r"(temp)
                 :"m"(gdtr), "m"(gdt), [cs]"i"(__CS)
-                :"rax"
+                :
                 );
     }
     // 初始化idt, 加载idtr
