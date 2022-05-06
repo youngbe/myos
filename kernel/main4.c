@@ -4,7 +4,9 @@
 
 #include <bit.h>
 
-#include "puiblic.h"
+#define IN_INIT
+#include "public.h"
+#undef IN_INIT
 
 typedef struct Memory_Block Memory_Block;
 struct __attribute__((packed)) Memory_Block
@@ -287,7 +289,7 @@ label_next0:
     // 分配挂起栈空间
     halt_stacks=malloc_mark(cores_num*sizeof(*halt_stacks), 4, 1, usable_blocks, &usable_blocks_num);
 
-    running_threads=(Thread **)malloc_mark(sizeof(Thread *[core_nums]), 3, 1, usable_blocks, &usable_blocks);
+    running_threads=(Thread **)malloc_mark(sizeof(Thread *[cores_num]), 3, 1, usable_blocks, &usable_blocks_num);
 
 
     // 分配空闲表空间
@@ -343,7 +345,7 @@ label_next0:
     }
 
     // 初始化Threads
-    for ( size_t i=0; i<core_nums; ++i )
+    for ( size_t i=0; i<cores_num; ++i )
     {
         running_threads[i]=NULL;
     }
@@ -378,7 +380,7 @@ label_next0:
     // init syscall sysret
     {
         // IA32_STAR
-        wrmsr(0xC0000081, ((uint64_t)__CS<<32)|((uint64_t)__DS_USER<<48));
+        wrmsr(0xC0000081, ((uint64_t)__CS<<32)|(((uint64_t)__DS_USER|0b11)<<48));
         // IA32_LSTAR
         //wrmsr(0xC0000082);
         // FMASK

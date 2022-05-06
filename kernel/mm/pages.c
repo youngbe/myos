@@ -6,7 +6,6 @@
 #include <tsl_lock.h>
 
 #include "public.h"
-#include "init_output.h"
 #include "semaphore/semaphore.h"
 
 #if UINTPTR_MAX != UINT64_MAX

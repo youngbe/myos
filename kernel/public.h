@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "semaphore/semaphore.h"
+
 #define __CS        (1<<3)
 #define __DS        (2<<3)
 #define __DS_USER   ((3<<3)|0b11)
@@ -63,6 +65,27 @@ struct Thread
 
 extern struct list_nohead *index_sched_threads;
 extern tsl_mutex sched_threads_mutex;
+extern Semaphore mm_mutex;
+#ifndef IN_INIT
+extern size_t const cores_num;
+
+extern struct TSS64 *const tsss;
+
+// 页表
+extern uint64_t kernel_pt1s[64][512];
+extern const uint64_t halt_pt0[512];
+extern uint64_t (*const page_tables)[512];
+extern uint_fast16_t *const pte_nums;
+extern uint64_t (**const free_page_tables)[512];
+extern size_t free_page_tables_num;
+
+extern uint64_t *const free_pages;
+extern size_t free_pages_num;
+
+extern struct __attribute__((aligned(16))){uint8_t padding[HALT_STACK_SIZE];}
+*const halt_stacks;
+extern Thread **const running_threads;
+#endif
 
 static inline size_t get_coreid()
 {
@@ -124,4 +147,17 @@ static inline uint64_t rdmsr(uint32_t msr)
     return ((uint64_t)high<<32)|low;
 }
 
-#include "sched/switch.h"
+static inline uint64_t (*get_cr3())[512]
+{
+    uint64_t (*cr3)[512];
+    __asm__ volatile(
+            "movq   %%cr3, %0"
+            :"=r"(cr3)
+            :
+            :);
+    return cr3;
+}
+
+extern void return_handler_thread_start();
+extern void return_handler_int();
+extern void return_handler_function();

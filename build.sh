@@ -72,13 +72,21 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@
 
 if [ $DEBUG -eq 0 ]; then
     $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-        -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-        kernel/*.c kernel/*.s kernel/mm/*.c  \
+        -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
+        -I kernel \
+        kernel/main4.c kernel/kernel_real_start.c kernel/empty_isr.s \
+        kernel/mm/kmalloc.c kernel/mm/pages.c \
+        kernel/semaphore/semaphore_down.s kernel/semaphore/semaphore_up.s kernel/semaphore/semaphore_ups.s \
+        kernel/sched/return_handlers.s kernel/sched/timer_isr.s \
         -o out/kernel.elf
 else
     $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-        -I kernel/include -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-        kernel/*.c kernel/*.s kernel/mm/*.c  \
+        -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
+        -I kernel \
+        kernel/main4.c kernel/kernel_real_start.c kernel/empty_isr.s \
+        kernel/mm/kmalloc.c kernel/mm/pages.c \
+        kernel/semaphore/semaphore_down.s kernel/semaphore/semaphore_up.s kernel/semaphore/semaphore_ups.s \
+        kernel/sched/return_handlers.s kernel/sched/timer_isr.s \
         -Og -g3 -o out/kernel.elf
     echo "" > out/empty.s
     $AS --64 out/empty.s -o out/empty.o

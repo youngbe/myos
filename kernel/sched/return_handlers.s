@@ -34,5 +34,6 @@ return_handler_thread_start:
     popq    %rsi
     popq    %rdi
     popq    %rcx
+    popq    %rsp
     movq    $( (1<<9) | (1<<1) ), %r11
-    sysret
+    sysretq

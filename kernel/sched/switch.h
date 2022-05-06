@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "init_output.h"
 
 extern void return_handler_timer_int();
 extern void return_handler_function();
