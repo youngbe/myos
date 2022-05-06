@@ -67,10 +67,12 @@ static struct GDT __attribute__((aligned(32))) gdt=
     {0, 0, 0, 0, 0, 0},
     // Code64 Descriptor
     {0, 0, 0, 0b10011010, 0b00100000, 0},
-    // Code64 Descriptor for user
-    {0, 0, 0, 0b11111010, 0b00100000, 0},
+    // Data64 Descriptor
+    {0, 0, 0, 0b10010010, 0, 0},
     // Data64 Descriptor for user
     {0, 0, 0, 0b11110010, 0, 0},
+    // Code64 Descriptor for user
+    {0, 0, 0, 0b11111010, 0b00100000, 0},
     // TSS Descriptor low
     {0x67, 0, 0, 0b10001001, 0 , 0},
     // TSS Descriptor high
@@ -352,30 +354,34 @@ label_next0:
             uint16_t limit;
             uint64_t base;
         } gdtr={sizeof(gdt)-1, (uint64_t)&gdt};
-        uint64_t temp_pgdtr=(uint64_t)&gdtr;
         uint64_t temp_ds=__DS;
-        uint64_t temp;
         __asm__ volatile(
-                "movq   %%rsp, %[temp]\n\t"
-                "pushq  %[ds]\n\t"
-                "pushq  %[temp]\n\t"
-                "pushfq\n\t"
-                "pushq  %[cs]\n\t"
-                "leaq   .Lreinit_gdt%=(%%rip), %[temp]\n\t"
-                "pushq  %[temp]\n\t"
-                "lgdtq  (%[pgdtr])\n\t"
-                "iretq\n"
-                ".Lreinit_gdt%=:\n\t"
+                "lgdtq  %[gdtr]\n\t"
+                "movq   %[ds], %%ss\n\t"
                 "movq   %[ds], %%ds\n\t"
                 "movq   %[ds], %%es\n\t"
                 "movq   %[ds], %%fs\n\t"
-                "movq   %[ds], %%gs"
+                "movq   %[ds], %%gs\n\t"
+                "pushq  %[cs]\n\t"
+                "leaq   .Lreinit_gdt%=(%%rip), %[ds]\n\t"
+                "pushq  %[ds]\n\t"
+                "lretq\n"
+                ".Lreinit_gdt%=:"
                 // 之所以将[pgdtr]放在写入一栏
                 // 是为了防止编译器将 %[pgdtr] 放在 %rsp 上
-                :[pgdtr]"+r"(temp_pgdtr), [ds]"+r"(temp_ds), [temp]"=&r"(temp)
-                :"m"(gdtr), "m"(gdt), [cs]"i"(__CS)
+                :[ds]"+r"(temp_ds)
+                :[gdtr]"m"(gdtr), "m"(gdt), [cs]"i"(__CS)
                 :
                 );
+    }
+    // init syscall sysret
+    {
+        // IA32_STAR
+        wrmsr(0xC0000081, ((uint64_t)__CS<<32)|((uint64_t)__DS_USER<<48));
+        // IA32_LSTAR
+        //wrmsr(0xC0000082);
+        // FMASK
+        wrmsr(0xC0000084, (uint32_t)~(1<<9));
     }
     // 初始化idt, 加载idtr
     {

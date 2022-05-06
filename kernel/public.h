@@ -6,10 +6,10 @@
 #include <stddef.h>
 
 #define __CS        (1<<3)
-#define __CS_USER   ((2<<3)|0b11)
-#define __DS        (0<<3)
+#define __DS        (2<<3)
 #define __DS_USER   ((3<<3)|0b11)
-#define __TSS       (4<<3)
+#define __CS_USER   ((4<<3)|0b11)
+#define __TSS       (5<<3)
 
 // 内核栈(每个线程一个)的大小，必须对齐16字节
 // 当使用系统调用时，或者发生时钟中断时，就从进程的用户态内存切换到这里
@@ -101,6 +101,27 @@ static inline void kernel_abort(const char * str)
             :
             );
     __builtin_unreachable();
+}
+
+static inline void  wrmsr(uint32_t msr, uint64_t val)
+{
+    __asm__ volatile(
+            "wrmsr"
+            :
+            :"a"((uint32_t)val), "d"((uint32_t)(val>>32)), "c"(msr)
+            :);
+}
+
+static inline uint64_t rdmsr(uint32_t msr)
+{
+    uint32_t low;
+    uint32_t high;
+    __asm__ volatile(
+            "rdmsr"
+            :"=a"(low), "=d"(high)
+            :
+            :);
+    return ((uint64_t)high<<32)|low;
 }
 
 #include "sched/switch.h"
