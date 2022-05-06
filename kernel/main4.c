@@ -28,8 +28,9 @@ struct __attribute__((packed)) GDT
 {
     struct Segment_Descriptor null_d;
     struct Segment_Descriptor cs_d;
-    struct Segment_Descriptor cs_user_d;
+    struct Segment_Descriptor ds_d;
     struct Segment_Descriptor ds_user_d;
+    struct Segment_Descriptor cs_user_d;
     struct Segment_Descriptor tssl_d;
     struct Segment_Descriptor tssh_d;
 };

@@ -119,7 +119,7 @@ static inline uint64_t rdmsr(uint32_t msr)
     __asm__ volatile(
             "rdmsr"
             :"=a"(low), "=d"(high)
-            :
+            :"c"(msr)
             :);
     return ((uint64_t)high<<32)|low;
 }
