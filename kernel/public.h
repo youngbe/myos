@@ -158,6 +158,15 @@ static inline uint64_t (*get_cr3())[512]
     return cr3;
 }
 
+static inline void write_eoi()
+{
+    __asm__ volatile(
+            "wrmsr"
+            :
+            :"c"((uint32_t)0x80b), "a"((uint32_t)0), "d"((uint32_t)0)
+            :);
+}
+
 extern void return_handler_thread_start();
 extern void return_handler_int();
 extern void return_handler_function();

@@ -15,6 +15,7 @@ void timer_isr(const void *)
     size_t const core_id=get_coreid();
     Thread *const running_thread=running_threads[core_id];
     TSL_LOCK_CONTENT(sched_threads_mutex, "=m"(index_sched_threads));
+    write_eoi();
     struct list_nohead *const new_node=index_sched_threads;
     if ( new_node == NULL )
     {
