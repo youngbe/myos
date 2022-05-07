@@ -7,7 +7,7 @@ semaphore_down:
 	movq	%rdi, %rsi
 	movl	$1, %r8d
 #APP
-# 7 "semaphore_down.c" 1
+# 7 "kernel/semaphore/semaphore_down.c" 1
 	cli
 .Ltsl_lock7:
 	xorq  %rax, %rax
@@ -20,7 +20,7 @@ semaphore_down:
 	jne	.L8
 	movl	$2050, %ecx
 #APP
-# 93 "../public.h" 1
+# 93 "kernel/public.h" 1
 	rdmsr
 # 0 "" 2
 #NO_APP
@@ -37,7 +37,7 @@ semaphore_down:
 	movq	%rdi, 24(%rsi)
 	movq	%rcx, 65616(%rax)
 #APP
-# 19 "semaphore_down.c" 1
+# 19 "kernel/semaphore/semaphore_down.c" 1
 	pushq  %rbx
 	pushq  %r12
 	pushq  %r13
@@ -46,7 +46,7 @@ semaphore_down:
 	pushq  %rbp
 	movq   %rsp, 65552(%rax)
 # 0 "" 2
-# 40 "semaphore_down.c" 1
+# 40 "kernel/semaphore/semaphore_down.c" 1
 	.Ltsl_lock27:
 	xorq  %rax, %rax
 	cmpxchgq %r8, sched_threads_mutex(%rip)
@@ -65,21 +65,21 @@ semaphore_down:
 	movq	%rcx, (%rdi)
 .L5:
 #APP
-# 65 "semaphore_down.c" 1
+# 65 "kernel/semaphore/semaphore_down.c" 1
 	movq  $0, sched_threads_mutex(%rip)
 # 0 "" 2
 #NO_APP
 	leaq	-65536(%rax), %rcx
 	movq	65568(%rcx), %rdi
 #APP
-# 69 "semaphore_down.c" 1
+# 69 "kernel/semaphore/semaphore_down.c" 1
 	movq   %cr3, %r8
 	cmpq   %r8, %rdi
 	je     1f
 	movq   %rdi, %cr3
 1:
 # 0 "" 2
-# 79 "semaphore_down.c" 1
+# 79 "kernel/semaphore/semaphore_down.c" 1
 	movq  $0, (%rsi)
 # 0 "" 2
 #NO_APP
@@ -88,7 +88,7 @@ semaphore_down:
 	addq	tsss(%rip), %rdx
 	movq	%rax, 4(%rdx)
 #APP
-# 15 "../sched/switch.h" 1
+# 15 "kernel/sched/switch.h" 1
 	movq   65552(%rcx), %rsp
 	jmpq   *65560(%rcx)
 # 0 "" 2
@@ -99,7 +99,7 @@ semaphore_down:
 	subq	$1, %rax
 	movq	%rax, 8(%rdi)
 #APP
-# 11 "semaphore_down.c" 1
+# 11 "kernel/semaphore/semaphore_down.c" 1
 	movq  $0, (%rdi)
 	sti
 # 0 "" 2
@@ -114,16 +114,16 @@ semaphore_down:
 	.p2align 3
 .L9:
 #APP
-# 45 "semaphore_down.c" 1
+# 45 "kernel/semaphore/semaphore_down.c" 1
 	movq  $0, sched_threads_mutex(%rip)
 # 0 "" 2
 #NO_APP
 	leaq	halt_pt0(%rip), %rax
 #APP
-# 46 "semaphore_down.c" 1
+# 46 "kernel/semaphore/semaphore_down.c" 1
 	movq   %rax, %cr3
 # 0 "" 2
-# 51 "semaphore_down.c" 1
+# 51 "kernel/semaphore/semaphore_down.c" 1
 	movq  $0, (%rsi)
 # 0 "" 2
 #NO_APP
@@ -132,7 +132,7 @@ semaphore_down:
 	salq	$12, %rdx
 	addq	halt_stacks(%rip), %rdx
 #APP
-# 29 "../sched/switch.h" 1
+# 29 "kernel/sched/switch.h" 1
 	movq   %rdx, %rsp
 	sti
 1:

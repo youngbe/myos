@@ -13,7 +13,7 @@ timer_isr:
 	pushq	%rdx
 	pushq	%rax
 #APP
-# 93 "../public.h" 1
+# 93 "kernel/public.h" 1
 	rdmsr
 # 0 "" 2
 #NO_APP
@@ -22,7 +22,7 @@ timer_isr:
 	movl	$1, %esi
 	movq	(%rdi,%rdx,8), %rcx
 #APP
-# 17 "timer_isr.c" 1
+# 17 "kernel/sched/timer_isr.c" 1
 	.Ltsl_lock18:
 	xorq  %rax, %rax
 	cmpxchgq %rsi, sched_threads_mutex(%rip)
@@ -33,7 +33,7 @@ timer_isr:
 	testq	%rax, %rax
 	jne	.L2
 #APP
-# 21 "timer_isr.c" 1
+# 21 "kernel/sched/timer_isr.c" 1
 	movq  $0, sched_threads_mutex(%rip)
 # 0 "" 2
 #NO_APP
@@ -51,7 +51,7 @@ timer_isr:
 	testq	%rcx, %rcx
 	je	.L12
 #APP
-# 46 "timer_isr.c" 1
+# 46 "kernel/sched/timer_isr.c" 1
 	pushq  %r12
 	pushq  %r13
 	pushq  %r14
@@ -77,7 +77,7 @@ timer_isr:
 .L7:
 	movq	65568(%rbx), %rax
 #APP
-# 79 "timer_isr.c" 1
+# 79 "kernel/sched/timer_isr.c" 1
 	movq   %cr3, %rsi
 	cmpq   %rsi, %rax
 	je     1f
@@ -87,7 +87,7 @@ timer_isr:
 #NO_APP
 .L5:
 #APP
-# 90 "timer_isr.c" 1
+# 90 "kernel/sched/timer_isr.c" 1
 	movq  $0, sched_threads_mutex(%rip)
 # 0 "" 2
 #NO_APP
@@ -98,7 +98,7 @@ timer_isr:
 	addq	tsss(%rip), %rax
 	movq	%rdx, 4(%rax)
 #APP
-# 15 "switch.h" 1
+# 15 "kernel/sched/switch.h" 1
 	movq   65552(%rbx), %rsp
 	jmpq   *65560(%rbx)
 # 0 "" 2
@@ -114,7 +114,7 @@ timer_isr:
 	movq	%rcx, index_sched_threads(%rip)
 	movq	65568(%rbx), %rax
 #APP
-# 37 "timer_isr.c" 1
+# 37 "kernel/sched/timer_isr.c" 1
 	movq   %rax, %cr3
 # 0 "" 2
 #NO_APP

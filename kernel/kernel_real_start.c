@@ -1,12 +1,14 @@
 #include "public.h"
 #include "mm/mm.h"
+#include <tsl_lock.h>
+#include "semaphore/semaphore.h"
 
 struct list_nohead *index_sched_threads=NULL;
 tsl_mutex sched_threads_mutex=TSL_UNLOCKED;
 Semaphore mm_mutex=SEMAPHORE_INIT(mm_mutex, 1);
 
 // 在初始化阶段创建进程
-int init_process(const void *const start)
+int create_process(const void *const start)
 {
     Thread *const new_thread=kmalloc_p2align(sizeof(Thread), 4);
     if ( new_thread == NULL )
@@ -25,11 +27,13 @@ int init_process(const void *const start)
         kfree(new_process);
         return -1;
     }
+    semaphore_down(&mm_mutex);
     const uint64_t new_pages[4]={free_pages[free_pages_num-1], free_pages[free_pages_num-2],
     free_pages[free_pages_num-3], free_pages[free_pages_num-4]};
     free_pages_num-=4;
     uint64_t (*const new_page_tables[2])[512]={free_page_tables[free_page_tables_num-1], free_page_tables[free_page_tables_num-2]};
     free_page_tables_num-=2;
+    semaphore_up(&mm_mutex);
     for ( size_t i=0; i<64; ++i )
     {
         (*new_page_tables[0])[i]=((uint64_t)&kernel_pt1s[i])|0b11;
@@ -57,6 +61,7 @@ int init_process(const void *const start)
     // %rsp
     ((uint64_t *)new_thread->rsp)[3]=((uint64_t)1<<48)-8;
     new_thread->return_handler=return_handler_thread_start;
+    CLI_TSL_LOCK_CONTENT(sched_threads_mutex, "=m"(index_sched_threads));
     if ( index_sched_threads == NULL )
     {
         init_nhlist(&index_sched_threads, &new_thread->node_sched_threads);
@@ -65,6 +70,7 @@ int init_process(const void *const start)
     {
         nhlist_add(&new_thread->node_sched_threads, index_sched_threads);
     }
+    STI_TSL_UNLOCK(sched_threads_mutex);
     return 0;
 }
 
@@ -73,17 +79,16 @@ void thread2();
 
 void kernel_real_start()
 {
-    if ( init_process((void*)thread1) != 0 )
+    if ( create_process((void*)thread1) != 0 )
     {
         kernel_abort("init process failed!");
     }
-    if ( init_process((void*)thread2) != 0 )
+    if ( create_process((void*)thread2) != 0 )
     {
         kernel_abort("init process failed!");
     }
     __asm__ volatile(
-            "1:sti\n"
-            "hlt\n\t"
+            "1:hlt\n\t"
             "jmp    1b"
             :
             :

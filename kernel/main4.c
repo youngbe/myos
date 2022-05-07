@@ -429,6 +429,7 @@ label_next0:
     __asm__ volatile (
             "movq   %[cr3], %%cr3\n\t"
             "movq   %[rsp], %%rsp\n\t"
+            "sti\n\t"
             "jmp    kernel_real_start"
             :
             // 让 gcc 生成kernel_real_start函数
