@@ -1,5 +1,4 @@
 #include "public.h"
-#include "init_output.h"
 
 #include "switch.h"
 

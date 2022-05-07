@@ -20,5 +20,5 @@ static inline void init_semaphore(Semaphore*const sema, const size_t val)
 }
 
 void semaphore_up(Semaphore* sema);
-void semaphore_ups(Semaphore* sema);
+void semaphore_ups(Semaphore* sema, size_t val);
 void semaphore_down(Semaphore* sema);

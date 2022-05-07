@@ -1,4 +1,6 @@
 #include "semaphore.h"
+#include "public.h"
+#include "sched/switch.h"
 
 void semaphore_down(Semaphore *const sema)
 {

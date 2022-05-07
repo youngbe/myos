@@ -9,7 +9,7 @@ semaphore_ups:
 	je	.L1
 	movl	$1, %ecx
 #APP
-# 9 "semaphore_ups.c" 1
+# 10 "semaphore_ups.c" 1
 	cli
 .Ltsl_lock10:
 	xorq  %rax, %rax
@@ -27,7 +27,7 @@ semaphore_ups:
 	movq	%rdi, 16(%rdx)
 	leaq	-80(%rax), %rdi
 #APP
-# 22 "semaphore_ups.c" 1
+# 23 "semaphore_ups.c" 1
 	.Ltsl_lock21:
 	xorq  %rax, %rax
 	cmpxchgq %rcx, sched_threads_mutex(%rip)
@@ -66,14 +66,14 @@ semaphore_ups:
 	jne	.L17
 .L7:
 #APP
-# 41 "semaphore_ups.c" 1
+# 42 "semaphore_ups.c" 1
 	movq  $0, sched_threads_mutex(%rip)
 # 0 "" 2
 #NO_APP
 .L14:
 	addq	%rsi, 8(%rdx)
 #APP
-# 43 "semaphore_ups.c" 1
+# 44 "semaphore_ups.c" 1
 	movq  $0, (%rdx)
 	sti
 # 0 "" 2

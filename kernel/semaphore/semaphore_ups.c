@@ -1,4 +1,5 @@
 #include "semaphore.h"
+#include "public.h"
 
 void semaphore_ups(Semaphore *const sema, size_t val)
 {

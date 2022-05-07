@@ -93,7 +93,7 @@ static inline size_t get_coreid()
     __asm__ volatile(
             "rdmsr"
             :"=a"(core_id)
-            :"c"((uint32_t)0x803)
+            :"c"((uint32_t)0x802)
             :"edx"
             );
     return (size_t)core_id;
