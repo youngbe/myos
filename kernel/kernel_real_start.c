@@ -36,13 +36,13 @@ int create_process(const void *const start)
     semaphore_up(&mm_mutex);
     for ( size_t i=0; i<64; ++i )
     {
-        (*new_page_tables[0])[i]=((uint64_t)&kernel_pt1s[i])|0b11;
+        (*new_page_tables[0])[i]=((uint64_t)&kernel_pt1s[i])|0b111;
     }
-    (*new_page_tables[0])[511]=((uint64_t)new_page_tables[1])|0b11;
-    (*new_page_tables[1])[511]=new_pages[3]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<7);
-    (*new_page_tables[1])[510]=new_pages[2]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<7);
-    (*new_page_tables[1])[509]=new_pages[1]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<7);
-    (*new_page_tables[1])[508]=new_pages[0]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<7);
+    (*new_page_tables[0])[511]=((uint64_t)new_page_tables[1])|0b111;
+    (*new_page_tables[1])[511]=new_pages[3]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[1])[510]=new_pages[2]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[1])[509]=new_pages[1]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[1])[508]=new_pages[0]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
     pte_nums[new_page_tables[0]-page_tables]=65;
     pte_nums[new_page_tables[1]-page_tables]=4;
     new_process->cr3=new_page_tables[0];

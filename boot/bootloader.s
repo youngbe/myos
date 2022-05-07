@@ -633,10 +633,10 @@ _start:
     orl     $( 1<<5 ), %eax
     movl    %eax, %cr4
 
-    # 设置 EFER 寄存器的LME位
+    # 设置 EFER 寄存器的LME, SCE位
     movl    $0xC0000080, %ecx
     rdmsr
-    orl     $( 1 << 8 ), %eax
+    orl     $( (1<<8)|(1<<0) ), %eax
     wrmsr
 
     call    .Lclear

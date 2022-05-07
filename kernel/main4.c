@@ -380,7 +380,7 @@ label_next0:
     // init syscall sysret
     {
         // IA32_STAR
-        wrmsr(0xC0000081, ((uint64_t)__CS<<32)|(((uint64_t)__DS_USER|0b11)<<48));
+        wrmsr(0xC0000081, ((uint64_t)__CS<<32)|((uint64_t)(__DS_USER-8)<<48) );
         // IA32_LSTAR
         //wrmsr(0xC0000082);
         // FMASK
@@ -540,7 +540,7 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page)
     if ( (*pt1)[i] == 0 )
     {
         pt2=new_pt();
-        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1);
+        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
     }
     else
     {
@@ -551,7 +551,7 @@ inline void map_page_2m(const uint64_t v_page, const uint64_t phy_page)
     {
         return;
     }
-    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<7);
+    (*pt2)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
     ++*get_pte_num(pt2);
 }
 
@@ -574,7 +574,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page)
     if ( (*pt1)[i] == 0 )
     {
         pt2=new_pt();
-        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1);
+        (*pt1)[i]=(uint64_t)pt2|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
     }
     else
     {
@@ -585,7 +585,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page)
     if ( (*pt2)[i] == 0 )
     {
         pt3=new_pt();
-        (*pt2)[i]=(uint64_t)pt3|((uint64_t)1<<0)|((uint64_t)1<<1);
+        (*pt2)[i]=(uint64_t)pt3|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
         ++*get_pte_num(pt2);
     }
     else
@@ -597,7 +597,7 @@ inline void map_page_4k(const uint64_t v_page, const uint64_t phy_page)
     {
         return;
     }
-    (*pt3)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1);
+    (*pt3)[i]=phy_page|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2);
     ++*get_pte_num(pt3);
 }
 
