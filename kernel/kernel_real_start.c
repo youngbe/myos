@@ -31,20 +31,22 @@ int create_process(const void *const start)
     const uint64_t new_pages[4]={free_pages[free_pages_num-1], free_pages[free_pages_num-2],
     free_pages[free_pages_num-3], free_pages[free_pages_num-4]};
     free_pages_num-=4;
-    uint64_t (*const new_page_tables[2])[512]={free_page_tables[free_page_tables_num-1], free_page_tables[free_page_tables_num-2]};
-    free_page_tables_num-=2;
+    uint64_t (*const new_page_tables[3])[512]={free_page_tables[free_page_tables_num-1], free_page_tables[free_page_tables_num-2], free_page_tables[free_page_tables_num-3]};
+    free_page_tables_num-=3;
     semaphore_up(&mm_mutex);
     for ( size_t i=0; i<64; ++i )
     {
         (*new_page_tables[0])[i]=((uint64_t)&kernel_pt1s[i])|0b111;
     }
-    (*new_page_tables[0])[511]=((uint64_t)new_page_tables[1])|0b111;
-    (*new_page_tables[1])[511]=new_pages[3]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
-    (*new_page_tables[1])[510]=new_pages[2]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
-    (*new_page_tables[1])[509]=new_pages[1]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
-    (*new_page_tables[1])[508]=new_pages[0]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[0])[255]=((uint64_t)new_page_tables[1])|0b111;
+    (*new_page_tables[1])[511]=((uint64_t)new_page_tables[2])|0b111;
+    (*new_page_tables[2])[511]=new_pages[3]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[2])[510]=new_pages[2]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[2])[509]=new_pages[1]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
+    (*new_page_tables[2])[508]=new_pages[0]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
     pte_nums[new_page_tables[0]-page_tables]=65;
-    pte_nums[new_page_tables[1]-page_tables]=4;
+    pte_nums[new_page_tables[1]-page_tables]=1;
+    pte_nums[new_page_tables[2]-page_tables]=4;
     new_process->cr3=new_page_tables[0];
     INIT_LIST_HEAD(&new_process->head_active_threads);
     list_add(&new_thread->node_active_threads, &new_process->head_active_threads);
@@ -59,7 +61,7 @@ int create_process(const void *const start)
     // %rip
     ((uint64_t *)new_thread->rsp)[2]=(uint64_t)start;
     // %rsp
-    ((uint64_t *)new_thread->rsp)[3]=((uint64_t)1<<48)-8;
+    ((uint64_t *)new_thread->rsp)[3]=((uint64_t)1<<47)-8;
     new_thread->return_handler=return_handler_thread_start;
     CLI_TSL_LOCK_CONTENT(sched_threads_mutex, "=m"(index_sched_threads));
     if ( index_sched_threads == NULL )
