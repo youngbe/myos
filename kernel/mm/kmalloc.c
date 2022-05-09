@@ -22,13 +22,13 @@
 // 页大小为2的多少次方
 #define PAGE_P2SIZE 21
 
-// 堆起始位置，含义见后文解释
+// 堆起始位置
 // 4T
 #define _BASE ((uintptr_t)0x40000000000)
 
-// 堆的最大地址，含义见后文解释
-// 30T
-#define _LIMIT ((uintptr_t)(0x1e0000000000-1))
+// 堆的最大地址
+// 32T
+#define _LIMIT ((uintptr_t)(0x200000000000-1))
 
 #define MALLOC kmalloc
 #define FREE kfree

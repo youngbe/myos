@@ -38,7 +38,7 @@ int create_process(const void *const start)
     {
         (*new_page_tables[0])[i]=((uint64_t)&kernel_pt1s[i])|0b111;
     }
-    (*new_page_tables[0])[255]=((uint64_t)new_page_tables[1])|0b111;
+    (*new_page_tables[0])[511]=((uint64_t)new_page_tables[1])|0b111;
     (*new_page_tables[1])[511]=((uint64_t)new_page_tables[2])|0b111;
     (*new_page_tables[2])[511]=new_pages[3]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
     (*new_page_tables[2])[510]=new_pages[2]|((uint64_t)1<<0)|((uint64_t)1<<1)|((uint64_t)1<<2)|((uint64_t)1<<7);
@@ -61,7 +61,7 @@ int create_process(const void *const start)
     // %rip
     ((uint64_t *)new_thread->rsp)[2]=(uint64_t)start;
     // %rsp
-    ((uint64_t *)new_thread->rsp)[3]=((uint64_t)1<<47)-8;
+    ((uint64_t *)new_thread->rsp)[3]=(uint64_t)-8;
     new_thread->return_handler=return_handler_thread_start;
     CLI_TSL_LOCK_CONTENT(sched_threads_mutex, "=m"(index_sched_threads));
     if ( index_sched_threads == NULL )

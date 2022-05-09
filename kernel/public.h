@@ -13,7 +13,7 @@
 #define __CS_USER   ((4<<3)|0b11)
 #define __TSS       (5<<3)
 
-// 内核栈(每个线程一个)的大小，必须对齐16字节
+// 内核栈(每个线程一个)的大小
 // 当使用系统调用时，或者发生时钟中断时，就从进程的用户态内存切换到这里
 #define KERNEL_STACK_SIZE 0x10000
 // 用户栈(每个线程一个)的大小，8M
@@ -63,14 +63,10 @@ struct Thread
     struct list_head node_block_threads;
 };
 
-extern struct list_nohead *index_sched_threads;
-extern tsl_mutex sched_threads_mutex;
-extern Semaphore mm_mutex;
 #ifndef IN_INIT
 extern size_t const cores_num;
-
 extern struct TSS64 *const tsss;
-
+// 内存相关
 // 页表
 extern uint64_t kernel_pt1s[64][512];
 extern const uint64_t halt_pt0[512];
@@ -78,13 +74,23 @@ extern uint64_t (*const page_tables)[512];
 extern uint_fast16_t *const pte_nums;
 extern uint64_t (**const free_page_tables)[512];
 extern size_t free_page_tables_num;
-
+// 所有空闲页
 extern uint64_t *const free_pages;
 extern size_t free_pages_num;
+// 对 free_pages, free_pages_num, free_page_tables, free_page_tables_num 加锁
+extern Semaphore mm_mutex;
 
+// 调度相关
+// 可调度线程表
+extern struct list_nohead *index_sched_threads;
+extern tsl_mutex sched_threads_mutex;
+// 当前cpu正在运行的线程
+// running_threads[0] == 0号CPU核心正在运行的线程
+// running_threads[1] == 1号CPU核心正在运行的线程
+extern Thread **const running_threads;
+// CPU挂起时使用的栈
 extern struct __attribute__((aligned(16))){uint8_t padding[HALT_STACK_SIZE];}
 *const halt_stacks;
-extern Thread **const running_threads;
 #endif
 
 static inline size_t get_coreid()

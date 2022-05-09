@@ -169,10 +169,10 @@ Thread ** running_threads;
 
 /* virtual memory map:
  * 0-4T 内核代码 page_tables (pte_nums free_page_tables free_pages TSS halt_stacks running_threads)
- * 4T-32T 内核heap
- * 32T-64T user data text rodata bss
- * 64T-248T user malloc
- * 248T-256T user stack
+ * 4T-32T 内核堆
+ * 32T-128T 用户代码
+ * 128T-248T 用户堆
+ * 248T-256T 用户栈
  * */
 
 
