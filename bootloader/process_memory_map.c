@@ -47,9 +47,9 @@ struct
     ssize_t status;
     void *kernel_load_address;
     size_t blocks_num;
-} handle_memory_map(E820_Entry*const entrys, size_t entrys_num, const size_t kernel_size, Memory_Block *const blocks)
+} process_memory_map(E820_Entry*const entrys, size_t entrys_num, const size_t kernel_size, Memory_Block *const blocks)
 {
-    __typeof__(handle_memory_map(NULL, 0, 0, NULL)) ret;
+    __typeof__(process_memory_map(NULL, 0, 0, NULL)) ret;
     // check memory_map_entry_list
     for (size_t i=entrys_num; i!=0; )
     {

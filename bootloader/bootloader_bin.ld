@@ -50,7 +50,7 @@ SECTIONS
     /DISCARD/   :
     {
         *(.note)
-        *(.note.gnu.build-id)
+        *(.note.*)
         *(.hash)
         *(.gnu.hash)
         *(.dynsym)

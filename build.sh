@@ -7,27 +7,33 @@ do
     fi
 done
 
-# GCC 通用 CFLAGS ，主要是开一些优化，关闭一些安全机制提升程序效率
+# GCC 通用 CFLAGS ，不仅可以用于编译内核，也可以用于编译普通应用程序
+# 包括开启一些优化，关闭一些安全机制提升程序效率
+# 以及一些个人习惯使用的选项
 GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" \
     "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
     "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
     "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
     "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
 
+# GCC 通用 C++ FLAGS，同上
+GCC_GLOBAL_CXXFLAGS=("-std=c++23" "-g0" "-O3" "-Wall" "-Wextra" \
+    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
+    "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
+    "-fno-rtti" "-fno-threadsafe-statics" \
+    "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions" "-fvtable-verify=none")
+
 # 开启LTO优化的FLAGS
 LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
 
-# 加上这个 FLAGS 将移除所有库，编译纯C程序
-PURE_C_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
-
-KERNEL_CFLAGS=("${PURE_C_FLAGS[@]}" "-ffreestanding" "-mno-red-zone" "-mgeneral-regs-only")
-
-PIE_KERNEL_ELF_OUTPUT_FLAGS=("${KERNEL_CFLAGS[@]}" "-fpie" "-T" "build/pie_kernel_elf.ld" "-pie" "build/kernel_start.c")
-
-BOOTLOADER_BIN_OUTPUT_FLAGS=("${PURE_C_FLAGS[@]}" "-mno-red-zone" "-mgeneral-regs-only" "-fno-pie" "-T" "build/bootloader.ld" "-no-pie")
+# 加上这个 FLAGS 将移除所有标准库，编译纯C/C++程序
+PURE_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
 
 if [ -z "$CC" ]; then
     CC="x86_64-linux-gnu-gcc"
+fi
+if [ -z "$CXX" ]; then
+    CXX="x86_64-linux-gnu-g++"
 fi
 if [ -z "$HOSTCC" ]; then
     HOSTCC="gcc"
@@ -57,37 +63,31 @@ check_dependency()
 check_dependency
 mkdir out 2>/dev/null
 set -e
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
-    -m32 -S \
+set -o xtrace
+$CC "${GCC_GLOBAL_CFLAGS[@]}" \
+    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -m32 -S \
     -I libc/include -I include \
-    boot/handle_memory_map.c \
-    -o out/handle_memory_map.s
-echo "  .code32" | cat - out/handle_memory_map.s > out/handle_memory_map.s.new
-mv out/handle_memory_map.s.new out/handle_memory_map.s
+    bootloader/process_memory_map.c \
+    -o out/process_memory_map.s
+echo "  .code32" | cat - out/process_memory_map.s > out/process_memory_map.s.new
+mv out/process_memory_map.s.new out/process_memory_map.s
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${BOOTLOADER_BIN_OUTPUT_FLAGS[@]}" \
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" \
+    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -T bootloader/bootloader_bin.ld -no-pie \
     -I libc/include -I include libc/memcpy32.s libc/memset32.s libc/memmove32.s libc/memcmp32.s \
-    boot/bootloader.s out/handle_memory_map.s boot/RSDP.c boot/MADT.c boot/init_ioapic_keyboard.c boot/error.c \
+    bootloader/bootloader.s out/process_memory_map.s bootloader/RSDP.c bootloader/MADT.c bootloader/init_ioapic_keyboard.c bootloader/error.c \
     -o out/bootloader.bin
 
+
 if [ $DEBUG -eq 0 ]; then
-    $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
+    # 目前bootloader还没有开启浮点功能，开启后将删除-mgeneral-regs-only
+    $CXX "${GCC_GLOBAL_CXXFLAGS[@]}" "${LTO_FLAGS[@]}" \
+        "${PURE_FLAGS[@]}" -ffreestanding -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
+        -mgeneral-regs-only \
         -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-        -I kernel \
-        kernel/main4.c kernel/kernel_real_start.c kernel/empty_isr.s \
-        kernel/mm/kmalloc.c kernel/mm/pages.c \
-        kernel/semaphore/semaphore_down.s kernel/semaphore/semaphore_up.s kernel/semaphore/semaphore_ups.s \
-        kernel/sched/return_handlers.s kernel/sched/timer_isr.s \
+        kernel_test/_start.cpp kernel_test/init.cpp kernel_test/terminal.cpp kernel_test/test.cpp \
         -o out/kernel.elf
 else
-    $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" "${PIE_KERNEL_ELF_OUTPUT_FLAGS[@]}" \
-        -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-        -I kernel \
-        kernel/main4.c kernel/kernel_real_start.c kernel/empty_isr.s \
-        kernel/mm/kmalloc.c kernel/mm/pages.c \
-        kernel/semaphore/semaphore_down.s kernel/semaphore/semaphore_up.s kernel/semaphore/semaphore_ups.s \
-        kernel/sched/return_handlers.s kernel/sched/timer_isr.s \
-        -Og -g3 -o out/kernel.elf
     echo "" > out/empty.s
     $AS --64 out/empty.s -o out/empty.o
     $LD -s -e 0 out/empty.o -o out/empty.elf
@@ -97,6 +97,8 @@ $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .data --set-section-flags .data=load,content,alloc \
     -j .bss --set-section-flags .bss=load,content,alloc \
     -j .rela.dyn --set-section-flags .rela.dyn=load,content,alloc \
+    -j .init_array --set-section-flags .init_array=load,content,alloc \
+    -j .fini_array --set-section-flags .fini_array=load,content,alloc \
     out/kernel.elf out/kernel.bin
 
 

@@ -417,9 +417,9 @@ _start:
 
 
 
-    // handle memory map
+    // process memory map
     # 1. goto protected mode
-    # 2. run handle_memory_map, this will find a place to load kernel
+    # 2. run process_memory_map, this will find a place to load kernel
     # 3. back to real mode
     cli
     enter_protected_mode
@@ -439,7 +439,7 @@ _start:
     pushl   $0x20000
     // return struct *
     pushl   %eax
-    call    handle_memory_map
+    call    process_memory_map
 
     // 清除栈中传入参数(entrys, entrys_num, kernel_size, blocks)
     // return struct * 它已经帮我们清除了

@@ -1,4 +1,5 @@
 #pragma once
+#include "repeat.h"
 
 /*
 __has_builtin

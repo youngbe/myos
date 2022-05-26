@@ -2,6 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 static inline int strncmp ( const char * str1, const char * str2, size_t num );
 /*
  * 根据文档，gcc编译器需要提供memcpy, memmove, memset, memcmp 的额外实现
@@ -16,6 +19,9 @@ void * memcpy(void * destination, const void * source, size_t size);
 void * memmove(void * destination, const void * source, size_t size);
 void * memset ( void * ptr, int value, size_t num );
 int memcmp(const void *str1, const void *str2, size_t n);
+#ifdef __cplusplus
+}
+#endif
 
 
 
