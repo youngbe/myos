@@ -79,7 +79,7 @@ if [ $DEBUG -eq 0 ]; then
     # 目前bootloader还没有开启浮点功能，开启后将删除-mgeneral-regs-only
     # 开启-ffreestanding后将默认关闭-ftree-loop-distribute-patterns
     # 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
-    $CXX "${GCC_GLOBAL_CXXFLAGS[@]}"  \
+    $CXX "${GCC_GLOBAL_CXXFLAGS[@]}" "${LTO_FLAGS[@]}" \
         "${PURE_FLAGS[@]}" -ffreestanding -ftree-loop-distribute-patterns -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
         -mgeneral-regs-only \
         -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
