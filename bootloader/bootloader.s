@@ -1,3 +1,4 @@
+    .set    kernel_sectors_num, __pp_kernel_sectors_num
     .macro enter_protected_mode
     movl    %cr0, %eax
     orl     $1, %eax
@@ -162,8 +163,7 @@ _start:
 
 
     //读取Bootloader剩余部分
-    # 前 65 个扇区为bootloader
-    # 第 65 个扇区(从0开始数)为kernel_size
+    # 前 66 个扇区为bootloader
     # 第 66 个扇区开始为kernel
     movw    $65, %ax
     movl    $0x7e00000, %edx
@@ -472,7 +472,7 @@ _start:
 
 
     // 加载内核
-    movl    0xfe00, %eax
+    movl    $kernel_sectors_num, %eax
     # 现在%eax存放了需要读取的扇区数
 
     # while %eax > 0x7f

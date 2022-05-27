@@ -27,25 +27,27 @@ GCC_GLOBAL_CXXFLAGS=("-std=c++23" "-g0" "-O3" "-Wall" "-Wextra" \
 LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
 
 # 加上这个 FLAGS 将移除所有标准库，编译纯C/C++程序
-PURE_FLAGS=("-fno-builtin" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
+# 加上-fno-builtin时会默认关闭-ftree-loop-distribute-patterns
+# 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
+PURE_FLAGS=("-fno-builtin" "-ftree-loop-distribute-patterns" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
 
 if [ -z "$CC" ]; then
-    CC="x86_64-linux-gnu-gcc"
+    CC="gcc"
 fi
 if [ -z "$CXX" ]; then
-    CXX="x86_64-linux-gnu-g++"
+    CXX="g++"
 fi
 if [ -z "$HOSTCC" ]; then
     HOSTCC="gcc"
 fi
 if [ -z "$AS" ]; then
-    AS="x86_64-linux-gnu-as"
+    AS="as"
 fi
 if [ -z "$LD" ]; then
-    LD="x86_64-linux-gnu-ld"
+    LD="ld"
 fi
 if [ -z "$OBJCOPY" ]; then
-    OBJCOPY="x86_64-linux-gnu-objcopy"
+    OBJCOPY="objcopy"
 fi
 
 check_dependency()
@@ -72,23 +74,19 @@ $CC "${GCC_GLOBAL_CFLAGS[@]}" \
 echo "  .code32" | cat - out/process_memory_map.s > out/process_memory_map.s.new
 mv out/process_memory_map.s.new out/process_memory_map.s
 
-$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" \
-    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -T bootloader/bootloader_bin.ld -no-pie \
-    -I libc/include -I include libc/memcpy32.s libc/memset32.s libc/memmove32.s libc/memcmp32.s \
-    bootloader/bootloader.s out/process_memory_map.s bootloader/RSDP.c bootloader/MADT.c bootloader/init_ioapic_keyboard.c bootloader/error.c \
-    -o out/bootloader.bin
-
 
 if [ $DEBUG -eq 0 ]; then
     # 目前bootloader还没有开启浮点功能，开启后将删除-mgeneral-regs-only
-    $CXX "${GCC_GLOBAL_CXXFLAGS[@]}" "${LTO_FLAGS[@]}" \
-        "${PURE_FLAGS[@]}" -ffreestanding -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
+    # 开启-ffreestanding后将默认关闭-ftree-loop-distribute-patterns
+    # 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
+    $CXX "${GCC_GLOBAL_CXXFLAGS[@]}"  \
+        "${PURE_FLAGS[@]}" -ffreestanding -ftree-loop-distribute-patterns -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
         -mgeneral-regs-only \
         -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
         kernel_test/_start.cpp kernel_test/init.cpp kernel_test/terminal.cpp kernel_test/test.cpp \
         -o out/kernel.elf
 else
-    echo "" > out/empty.s
+    > out/empty.s
     $AS --64 out/empty.s -o out/empty.o
     $LD -s -e 0 out/empty.o -o out/empty.elf
 fi
@@ -101,12 +99,22 @@ $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .fini_array --set-section-flags .fini_array=load,content,alloc \
     out/kernel.elf out/kernel.bin
 
+sectors_num=$(( $(stat -c %s out/kernel.bin) ))
+if ((sectors_num%512 == 0)) ; then
+    sectors_num=$((sectors_num/512))
+else
+    sectors_num=$((sectors_num/512+1))
+fi
+sed "s/__pp_kernel_sectors_num/$sectors_num/g" bootloader/bootloader.s > out/bootloader.s
 
-$HOSTCC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" build/build_helper.c -o out/build_helper
-out/build_helper out/kernel.bin out/kernel_size
+$CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" \
+    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -T bootloader/bootloader_bin.ld -no-pie \
+    -I libc/include -I include libc/memcpy32.s libc/memset32.s libc/memmove32.s libc/memcmp32.s \
+    out/bootloader.s out/process_memory_map.s bootloader/RSDP.c bootloader/MADT.c bootloader/init_ioapic_keyboard.c bootloader/error.c \
+    -o out/bootloader.bin
 
-dd conv=fdatasync if=out/bootloader.bin ibs=$((512*65)) conv=sync of=out/boot.img
-dd conv=fdatasync if=out/kernel_size ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
+
+dd conv=fdatasync if=out/bootloader.bin ibs=$((512*66)) conv=sync of=out/boot.img
 dd conv=fdatasync if=out/kernel.bin ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
 dd conv=fdatasync if=/dev/zero ibs=1M count=2 of=out/boot.img oflag=append conv=notrunc
 rm -rf out/boot.vmdk
