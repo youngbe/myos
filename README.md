@@ -17,7 +17,7 @@
 ```bash
 # Ubuntu 22.04
 sudo apt update
-sudo apt --no-install-recommends install gcc g++ qemu-uitls
+sudo apt --no-install-recommends install gcc g++ qemu-utils
 # Fedora
 sudo dnf --setopt=install_weak_deps=0 install gcc gcc-c++ qemu-img
 ```
