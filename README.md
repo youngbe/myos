@@ -9,7 +9,7 @@
 5. 支持`x2APIC`(qemu不支持)
 6. 支持`XSAVE feature set`
 
-目前 vmware 16.2 + 第八代英特尔CPU 支持上述所有功能
+实测 Vmware 16.2 + 八代英特尔CPU(i5-8300h) 支持上述所有功能
 ## 开发环境
 推荐在x86_64电脑上使用`Ubuntu 22.04+`或`Fedora 36+`
 
