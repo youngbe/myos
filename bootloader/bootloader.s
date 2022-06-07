@@ -145,22 +145,22 @@ _start:
     testb   $(1<<2), %al
     jz      .Lerror
 
-    # 8. clear CR4.CET CR4.PKS CR4.PKE
-    movl    %cr4, %eax
-    testl   $( (1<<23) | (1<<22) | (1<<24) ), %eax
-    jz      1f
-    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
-    movl    %eax, %cr4
-1:
-
-    # clear CR0.WP
+    # 清除 CR0.WP[16] CR0.EM[2] CR0.TS[3]
+    # 设置 CR0.MP[1]
     movl    %cr0, %eax
-    testl   $(1<<16), %eax
-    jz      1f
-    andl    $( ~(1<<16) ), %eax
+    andl    $( ~( (1<<16)|(1<<2)|(1<<3) ) ), %eax
+    orl     $(1<<1), %eax
     movl    %eax, %cr0
-1:
+    // 现在 MMX 指令集已经启用
 
+    # 清除 CR4.CET CR4.PKS CR4.PKE
+    # 设置 CR4.OSFXSR[9]
+    movl    %cr4, %eax
+    andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
+    orl     $(1<<9), %eax
+    movl    %eax, %cr4
+    // 现在 SSE 指令集已经启用
+    // x86_64通用CPU至少支持到 SSE2 指令集
 
     //读取Bootloader剩余部分
     # 前 66 个扇区为bootloader

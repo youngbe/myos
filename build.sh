@@ -66,24 +66,15 @@ check_dependency
 mkdir out 2>/dev/null
 set -e
 set -o xtrace
-$CC "${GCC_GLOBAL_CFLAGS[@]}" \
-    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -m32 -S \
-    -I libc/include -I include \
-    bootloader/process_memory_map.c \
-    -o out/process_memory_map.s
-echo "  .code32" | cat - out/process_memory_map.s > out/process_memory_map.s.new
-mv out/process_memory_map.s.new out/process_memory_map.s
 
-
+# 首先编译内核
 if [ $DEBUG -eq 0 ]; then
-    # 目前bootloader还没有开启浮点功能，开启后将删除-mgeneral-regs-only
     # 开启-ffreestanding后将默认关闭-ftree-loop-distribute-patterns
     # 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
     $CXX "${GCC_GLOBAL_CXXFLAGS[@]}" "${LTO_FLAGS[@]}" \
         "${PURE_FLAGS[@]}" -ffreestanding -ftree-loop-distribute-patterns -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
-        -mgeneral-regs-only \
         -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
-        kernel_test/_start.cpp kernel_test/init.cpp kernel_test/terminal.cpp kernel_test/test.cpp \
+        kernel_test/_start.cpp kernel_test/init.cpp kernel_test/kernel_start.cpp kernel_test/empty_isr.s kernel_test/sched/return_handlers.s kernel_test/sched/timer_isr.s \
         -o out/kernel.elf
 else
     > out/empty.s
@@ -99,6 +90,7 @@ $OBJCOPY -O binary -j .text --set-section-flags .text=load,content,alloc \
     -j .fini_array --set-section-flags .fini_array=load,content,alloc \
     out/kernel.elf out/kernel.bin
 
+# 然后编译bootloader
 sectors_num=$(( $(stat -c %s out/kernel.bin) ))
 if ((sectors_num%512 == 0)) ; then
     sectors_num=$((sectors_num/512))
@@ -107,13 +99,21 @@ else
 fi
 sed "s/__pp_kernel_sectors_num/$sectors_num/g" bootloader/bootloader.s > out/bootloader.s
 
+$CC "${GCC_GLOBAL_CFLAGS[@]}" \
+    "${PURE_FLAGS[@]}" -mno-red-zone -fno-pie -m32 -S \
+    -I libc/include -I include \
+    bootloader/process_memory_map.c \
+    -o out/process_memory_map.s
+echo "  .code32" | cat - out/process_memory_map.s > out/process_memory_map.s.new
+mv out/process_memory_map.s.new out/process_memory_map.s
+
 $CC "${GCC_GLOBAL_CFLAGS[@]}" "${LTO_FLAGS[@]}" \
-    "${PURE_FLAGS[@]}" -mno-red-zone -mgeneral-regs-only -fno-pie -T bootloader/bootloader_bin.ld -no-pie \
+    "${PURE_FLAGS[@]}" -mno-red-zone -fno-pie -T bootloader/bootloader_bin.ld -no-pie \
     -I libc/include -I include libc/memcpy32.s libc/memset32.s libc/memmove32.s libc/memcmp32.s \
     out/bootloader.s out/process_memory_map.s bootloader/RSDP.c bootloader/MADT.c bootloader/init_ioapic_keyboard.c bootloader/error.c \
     -o out/bootloader.bin
 
-
+# 最后将内核和bootloader打包为虚拟磁盘
 dd conv=fdatasync if=out/bootloader.bin ibs=$((512*66)) conv=sync of=out/boot.img
 dd conv=fdatasync if=out/kernel.bin ibs=512 conv=sync of=out/boot.img oflag=append conv=notrunc
 dd conv=fdatasync if=/dev/zero ibs=1M count=2 of=out/boot.img oflag=append conv=notrunc

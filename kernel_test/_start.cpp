@@ -23,17 +23,6 @@ void _start(const Memory_Block *const blocks, const size_t blocks_num)
         } Elf64_Rela;
         extern const Elf64_Rela __rela_dyn_start[];
         extern const Elf64_Rela __rela_dyn_end[];
-        /*
-        for (size_t i=0; &__rela_dyn_start[i] != __rela_dyn_end; ++i)
-        {
-            if ( __rela_dyn_start[i].info != 8 )
-            {
-                kernel_abort("unknown relocation info!");
-            }
-            *(uint64_t *)((uintptr_t)_start+__rela_dyn_start[i].offset)=(uint64_t)((uintptr_t)_start+__rela_dyn_start[i].append);
-        }
-        */
-        
         const Elf64_Rela* rela=__rela_dyn_start;
         while ( rela != __rela_dyn_end )
         {
@@ -44,27 +33,18 @@ void _start(const Memory_Block *const blocks, const size_t blocks_num)
             *(uint64_t *)((uintptr_t)_start+rela->offset)=(uint64_t)((uintptr_t)_start+rela->append);
             ++rela;
         }
-        
         __asm__ volatile ("":::"memory");
     }
     // 运行init_array代码
     {
         extern void (*const __init_array_start[])();
         extern void (*const __init_array_end[])();
-        /*
-        for ( size_t i=0; &__init_array_start[i] != __init_array_end; ++i )
-        {
-            __init_array_start[i]();
-        }
-        */
-        
         void (*const*fun)()=__init_array_start;
         while ( fun != __init_array_end )
         {
             (*fun)();
             ++fun;
         }
-        
     }
     init(blocks, blocks_num);
 }
