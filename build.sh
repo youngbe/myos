@@ -10,26 +10,31 @@ done
 # GCC 通用 CFLAGS ，不仅可以用于编译内核，也可以用于编译普通应用程序
 # 包括开启一些优化，关闭一些安全机制提升程序效率
 # 以及一些个人习惯使用的选项
-GCC_GLOBAL_CFLAGS=("-std=c2x" "-g0" "-O3" "-Wall" "-Wextra" \
-    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
-    "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
-    "-fno-exceptions" "-fno-asynchronous-unwind-tables" "-fno-unwind-tables" \
-    "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions")
+GCC_GLOBAL_CFLAGS=(
+    -std=c2x -Wall -Wextra
+    -fstack-reuse=all -freg-struct-return -fdwarf2-cfi-asm -fplt
+    -fwrapv -fwrapv-pointer -fno-trapv -ffast-math -ffp-contract=fast
+    -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables
+    -fstack-check=no -fno-stack-clash-protection -fno-stack-protector -fno-split-stack -fcf-protection=none -fno-sanitize=all -fno-instrument-functions
+    -g0 -Ofast
+)
 
 # GCC 通用 C++ FLAGS，同上
-GCC_GLOBAL_CXXFLAGS=("-std=c++23" "-g0" "-O3" "-Wall" "-Wextra" \
-    "-fstack-reuse=all" "-freg-struct-return" "-fdwarf2-cfi-asm" "-fplt" \
-    "-fwrapv" "-fwrapv-pointer" "-fno-trapv" \
-    "-fno-rtti" "-fno-threadsafe-statics" \
-    "-fstack-check=no" "-fno-stack-clash-protection" "-fno-stack-protector" "-fno-split-stack" "-fcf-protection=none" "-fno-sanitize=all" "-fno-instrument-functions" "-fvtable-verify=none")
+GCC_GLOBAL_CXXFLAGS=(
+    -std=c++23 -Wall -Wextra
+    -fstack-reuse=all -freg-struct-return -fdwarf2-cfi-asm -fplt
+    -fwrapv -fwrapv-pointer -fno-trapv -ffast-math -ffp-contract=fast -fno-rtti -fno-threadsafe-statics
+    -fstack-check=no -fno-stack-clash-protection -fno-stack-protector -fno-split-stack -fcf-protection=none -fno-sanitize=all -fno-instrument-functions -fvtable-verify=none
+    -g0 -Ofast
+)
 
 # 开启LTO优化的FLAGS
-LTO_FLAGS=("-flto" "-flto-compression-level=0" "-fno-fat-lto-objects" "-fuse-linker-plugin" "-fwhole-program")
+LTO_FLAGS=(-flto -flto-partition=one -flto-compression-level=0 -fno-fat-lto-objects -fuse-linker-plugin -fwhole-program)
 
 # 加上这个 FLAGS 将移除所有标准库，编译纯C/C++程序
 # 加上-fno-builtin时会默认关闭-ftree-loop-distribute-patterns
 # 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
-PURE_FLAGS=("-fno-builtin" "-ftree-loop-distribute-patterns" "-nostdinc" "-nostdlib" "-nolibc" "-nostartfiles" "-nodefaultlibs")
+PURE_FLAGS=(-fno-builtin -ftree-loop-distribute-patterns -nostdinc -nostdlib -nolibc -nostartfiles -nodefaultlibs)
 
 if [ -z "$CC" ]; then
     CC="gcc"
