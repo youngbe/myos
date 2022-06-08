@@ -133,12 +133,20 @@ _start:
     # 5. 支持 TSC_Deadline
     testl   $(1<<24), %ecx
     jz      .Lerror
+
+    # 6. 支持 avx2 指令集
+    movl    $7, %eax
+    xorl    %ecx, %ecx
+    cpuid
+    testb   $(1<<5), %bl
+    jz      .Lerror
+
     movl    $0x1b, %ecx
-    # 6. APIC is enabled
+    # 7. APIC is enabled
     rdmsr
     testw   $(1<<11), %ax
     jz      .Lerror
-    # 7. 选自英特尔3a卷
+    # 8. 选自英特尔3a卷
     # If CPUID.06H:EAX.ARAT[bit 2] = 1, the processor’s APIC timer runs at a constant rate regardless of P-state transitions and it continues to run at the same rate in deep C-states.
     movl    $6, %eax
     cpuid
@@ -149,18 +157,23 @@ _start:
     # 设置 CR0.MP[1]
     movl    %cr0, %eax
     andl    $( ~( (1<<16)|(1<<2)|(1<<3) ) ), %eax
-    orl     $(1<<1), %eax
+    orb     $(1<<1), %al
     movl    %eax, %cr0
     // 现在 MMX 指令集已经启用
 
     # 清除 CR4.CET CR4.PKS CR4.PKE
-    # 设置 CR4.OSFXSR[9]
+    # 设置 CR4.OSFXSR[9] CR4.OSXSAVE[18]
     movl    %cr4, %eax
     andl    $( ~( (1<<23) | (1<<22) | (1<<24) ) ), %eax
-    orl     $(1<<9), %eax
+    orl     $( (1<<9)|(1<<18) ), %eax
     movl    %eax, %cr4
-    // 现在 SSE 指令集已经启用
-    // x86_64通用CPU至少支持到 SSE2 指令集
+    // 现在 SSE,XSAVE 指令集已经启用
+    
+    xorl    %ecx, %ecx
+    xgetbv
+    orb     $( (1<<0)|(1<<1)|(1<<2) ), %al
+    xsetbv
+    // 现在 avx 指令集已启用
 
     //读取Bootloader剩余部分
     # 前 66 个扇区为bootloader
