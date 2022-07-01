@@ -83,14 +83,15 @@ SECTIONS
     }
     __rela_dyn_end = . ;
 
-    /* 一些没有影响的信息 */
-    .note.gnu.build-id  : { *(.note.gnu.build-id) }
-    .note.gnu.property  : { *(.note.gnu.property) }
+    /* DYN文件基础节 */
     .hash           : { *(.hash) }
     .gnu.hash       : { *(.gnu.hash) }
     .dynsym         : { *(.dynsym) }
     .dynstr         : { *(.dynstr) }
     .dynamic        : { *(.dynamic) }
+
+    /* 保留此节，防止链接阶段报warning */
+    .note.gnu.build-id  : { *(.note.gnu.build-id) }
 
     /* 调试信息 */
     .debug          0 : { *(.debug) }
@@ -132,6 +133,7 @@ SECTIONS
     /DISCARD/   :
     {
         *(.note)
+	*(.note.gnu.property)
         *(.note.*)
         *(.comment .comment.*)
         *(.interp)
