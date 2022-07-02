@@ -78,8 +78,8 @@ if [ $DEBUG -eq 0 ]; then
     # 见：https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56888
     $CXX "${GCC_GLOBAL_CXXFLAGS[@]}" "${LTO_FLAGS[@]}" \
         -march=x86-64-v3 \
-        "${PURE_FLAGS[@]}" -ffreestanding -ftree-loop-distribute-patterns -mno-red-zone -fpie -Wl,-T -Wl,kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
-	-static-pie -s -Wl,--build-id=none\
+        "${PURE_FLAGS[@]}" -ffreestanding -ftree-loop-distribute-patterns -mno-red-zone -fpie -T kernel_test/kernel_pie_elf.ld -pie -fno-use-cxa-atexit -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables \
+	-static-pie -s -Wl,--build-id=none \
         -I libc/include -I include libc/memcpy.s libc/memset.s libc/memmove.s libc/memcmp.s \
         kernel_test/_start.cpp kernel_test/init.cpp kernel_test/kernel_start.cpp kernel_test/empty_isr.s kernel_test/sched/return_handlers.s kernel_test/sched/timer_isr.s \
         -o out/kernel.elf

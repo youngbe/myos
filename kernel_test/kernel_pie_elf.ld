@@ -88,6 +88,8 @@ SECTIONS
     .gnu.hash       : { *(.gnu.hash) }
     .dynsym         : { *(.dynsym) }
     .dynstr         : { *(.dynstr) }
+    .eh_frame       : ONLY_IF_RO { KEEP (*(.eh_frame)) *(.eh_frame.*) }
+    .eh_frame       : ONLY_IF_RW { KEEP (*(.eh_frame)) *(.eh_frame.*) }
     .dynamic        : { *(.dynamic) }
 
     /* 保留此节，防止链接阶段报warning */
